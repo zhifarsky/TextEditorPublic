@@ -1,9 +1,0 @@
-{
-  "files.associations": {
-    "istream": "cpp",
-    "iterator": "cpp",
-    "xlocmon": "cpp",
-    "xlocnum": "cpp",
-    "xstring": "cpp"
-  }
-}
