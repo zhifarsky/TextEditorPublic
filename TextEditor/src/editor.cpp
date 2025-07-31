@@ -13,88 +13,82 @@ Text& Editor::getCurrentTextTab() {
   return textTabs[currentTextTab];
 }
 
-void Editor::AddTextTab()
-{
+void Editor::AddTextTab() {
   Text text;
   text.init();
   textTabs.append(text);
   isTextOpen.append(true);
 }
 
-// TODO: второй курсор (при зажатии SHIFT te_IsKeyDown(VK_SHIFT))
+void Editor::CloseTextTab(int tabIndex) {
+  textTabs[currentTextTab].free();
+  isTextOpen.remove(tabIndex);
+  textTabs.remove(tabIndex);
+}
+
 void Editor::cursorMoveLeft() {
   Text& text = getCurrentTextTab();
   
-  // основной курсор
-  if (!te_IsKeyDown(VK_SHIFT)) {
-    if (text.cursorIndex > 0) {
-      // на один символ
-      if (!te_IsKeyDown(VK_CONTROL)) {
-        text.cursorIndex--;
-        const char* charStart = findCharStartU8(&text.textBuffer[text.cursorIndex]);
-        int offset = &text.textBuffer[text.cursorIndex] - charStart;
-        text.cursorIndex -= offset;
-        text.cursorIndex2 = text.cursorIndex;
-      }
-      // пропустить все буквы
-      else {
-        int i = text.cursorIndex - 1;
-        for (; i >= 0; i--)
-        {
-          char c = text.textBuffer[i];
-          if (!IsLetter(c)) {
-            break;
-          }
-        }
-        text.cursorIndex = text.cursorIndex2 = max(i, 0);
-      }
-    }
+  // на один символ
+  if (!te_IsKeyDown(VK_CONTROL)) {
+    // if (text.cursorIndex2 < 1) {
+    //   text.cursorIndex = text.cursorIndex2;
+    //   return;
+    // }
+
+    int offset = findOffsetToCharStartU8(&text.textBuffer[max(text.cursorIndex2 - 1, 0)]);
+    if (!te_IsKeyDown(VK_SHIFT)) // перемещение курсора
+      text.cursorIndex = text.cursorIndex2 = max(text.cursorIndex + offset - 1, 0);
+    else // выделение текста
+      text.cursorIndex2 = max(text.cursorIndex2 + offset - 1, 0);
   }
-  // выделение текста
+  // пропустить все буквы
   else {
-    if (text.cursorIndex2 > 0) {
-      text.cursorIndex2--;
-      const char* charStart = findCharStartU8(&text.textBuffer[text.cursorIndex2]);
-      int offset = &text.textBuffer[text.cursorIndex2] - charStart;
-      text.cursorIndex2 -= offset;
+    int i = te_IsKeyDown(VK_SHIFT) ? text.cursorIndex2 - 1 : text.cursorIndex - 1;
+    for (; i >= 0; i--)
+    {
+      char c = text.textBuffer[i];
+      if (!IsLetter(c)) {
+        break;
+      }
     }
+    if (!te_IsKeyDown(VK_SHIFT))
+      text.cursorIndex = max(i, 0);
+    text.cursorIndex2 = max(i, 0);
   }
 }
 
 void Editor::cursorMoveRight() {
   Text& text = getCurrentTextTab();
   
-  // основной курсор
-  if (!te_IsKeyDown(VK_SHIFT)) {
-    if (text.cursorIndex < text.textBuffer.size) {
-      // на один символ
-      if (!te_IsKeyDown(VK_CONTROL)) {
-        int offset = getCharLenU8(text.textBuffer[text.cursorIndex]);
-        text.cursorIndex += offset;
+  // if (text.cursorIndex < text.textBuffer.size) {
+    // на один символ
+    if (!te_IsKeyDown(VK_CONTROL)) {
+      int offset = getCharLenU8(text.textBuffer[text.cursorIndex]);
+      if (!te_IsKeyDown(VK_SHIFT)) {
+        text.cursorIndex = min(text.cursorIndex + offset, text.textBuffer.size);
         text.cursorIndex2 = text.cursorIndex;
       }
-      // пропустить все буквы
+      // выделение текста
       else {
-        int i = text.cursorIndex + 1;
-        for (; i < text.textBuffer.size; i++)
-        {
-          char c = text.textBuffer[i];
-          // if ((c >= ' ' && c <= '/') || (c >= ':' && c <= '@') || (c >= '[' && c <= '`') || (c >= '{' && c <= '`')) {
-          if (!IsLetter(c)) {
-            break;
-          }
-        }
-       text.cursorIndex = text.cursorIndex2 = i;
+        text.cursorIndex2 = min(text.cursorIndex2 + offset, text.textBuffer.size);
       }
     }
-  }
-  // выделение текста
-  else {
-    if (text.cursorIndex2 < text.textBuffer.size) {
-      int offset = getCharLenU8(text.textBuffer[text.cursorIndex2]);
-      text.cursorIndex2 += offset;
+    // пропустить все буквы
+    else {
+      int i = te_IsKeyDown(VK_SHIFT) ? text.cursorIndex2 + 1 : text.cursorIndex + 1;
+      for (; i < text.textBuffer.size; i++)
+      {
+        char c = text.textBuffer[i];
+        if (!IsLetter(c)) {
+          break;
+        }
+      }
+      if (!te_IsKeyDown(VK_SHIFT))
+        text.cursorIndex = min(i, text.textBuffer.size);
+      text.cursorIndex2 = min(i, text.textBuffer.size);
     }
-  }
+  // }
 }
 
 // переход на строку вверх
@@ -257,6 +251,9 @@ bool hotkey(bool isPressed, bool* wasPressed) {
 }
 
 void Editor::ProcessHotkey(HWND window) {
+  if (window != GetActiveWindow())
+    return;
+
   Text& text = getCurrentTextTab();
   
   // копировать
@@ -306,17 +303,17 @@ void Editor::ProcessHotkey(HWND window) {
   static bool closeText = false;
   if (hotkey(te_IsKeyDown(VK_CONTROL) && te_IsKeyDown('W'), &closeText)) {
     if (currentTextTab >= 0 && currentTextTab < textTabs.size) {
-      textTabs.remove(currentTextTab);
+      CloseTextTab(currentTextTab);
     }
   }
 
-  // static bool undo = false;
-  // if (hotkey(te_IsKeyDown(VK_CONTROL) && te_IsKeyDown('Z'), &undo)) {
-  //   getCurrentTextTab().undo();
-  // }
-  if (te_IsKeyDown(VK_CONTROL) && te_IsKeyDown('Z')) {
+  static bool undo = false;
+  if (hotkey(te_IsKeyDown(VK_CONTROL) && te_IsKeyDown('Z'), &undo)) {
     getCurrentTextTab().undo();
   }
+  // if (te_IsKeyDown(VK_CONTROL) && te_IsKeyDown('Z')) {
+  //   getCurrentTextTab().undo();
+  // }
 
 
   static bool redo = false;

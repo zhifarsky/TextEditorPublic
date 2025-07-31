@@ -16,4 +16,5 @@ enum CharTypeU8 {
 CharTypeU8 getCharTypeU8(unsigned char c);
 int getCharLenU8(unsigned char c);
 const char *findCharStartU8(const char *s);
+int findOffsetToCharStartU8(const char* s);
 int countCharsU8(const char *s);

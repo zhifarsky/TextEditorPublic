@@ -8,6 +8,7 @@ struct RenderInfo {
   HDC deviceContext;
   HGLRC oglContext;
   HWND window;
+  unsigned int lastDockNodeId = 0;
 };
 
 struct Editor {
@@ -30,6 +31,7 @@ struct Editor {
 
   Text& getCurrentTextTab();
   void AddTextTab();
+  void CloseTextTab(int tabIndex);
 };
 
 // глобальноые состояние программы

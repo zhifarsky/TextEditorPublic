@@ -37,6 +37,20 @@ const char* findCharStartU8(const char* s) {
   }
 }
 
+int findOffsetToCharStartU8(const char* s) {
+  CharTypeU8 type = getCharTypeU8(*s);
+  if (type == CharMiddle) {
+    int i = -1;
+    while (IsMiddleByteU8(s[i])) {
+      i--;
+    }
+    return i;
+  }
+  else {
+    return 0;
+  }
+}
+
 int countCharsU8(const char* s) {
   int i = 0;
   int count = 0;

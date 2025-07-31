@@ -216,7 +216,7 @@ int WinMain(
 			auto imguiContext = ImGui::CreateContext();
 			// ImGui::SetCurrentContext(imguiContext);
 			ImGuiIO& io = ImGui::GetIO();
-			io.ConfigFlags |= ImGuiConfigFlags_DockingEnable; // imgui docking 
+			io.ConfigFlags |= ImGuiConfigFlags_DockingEnable; // imgui docking
 			ImGui::StyleColorsDark();
 			ImGui_ImplWin32_Init(renderInfo.window);
 			ImGui_ImplOpenGL3_Init(glsl_version);

@@ -356,22 +356,48 @@ void drawCursor(int cursorIndex, char* text, ImU32 color = IM_COL32_WHITE) {
 }
 */
 
+// C:/folder/abc.txt -> abc.txt
+char* pathToFilename(char* path) {
+  int i = 0;
+  int fnameIndex = 0;
+  while (path[i++] != '\0') {
+    char c = path[i];
+    if (c == '\\' || c == '/')
+      fnameIndex = i;
+  }
+  
+  if (i > 0)
+    return path + fnameIndex + 1;
+  else
+    return path;
+}
+
 // TEXT WINDOW
 void textWindow(Text& text, int id, bool* isOpen) {
   char windowsLabel[128];
   if (text.filename == NULL)
     wsprintfA(windowsLabel, "new %d###TextWindow%d", text.id, text.id);
-  else
-    wsprintfA(windowsLabel, "%s###TextWindow%d", text.filename, text.id);
-  // if (text.filename == NULL)
-  //   strConcatWithNumber(windowsLabel, 128, "new ", id);
-  // else
-  //   strConcatWithNumber(windowsLabel, 128, text.filename, id);
+  else {
+    wsprintfA(windowsLabel, "%s###TextWindow%d", pathToFilename(text.filename), text.id);
+  }
     
-
-  if (ImGui::Begin(windowsLabel, isOpen)) {
+  if (ImGui::Begin(windowsLabel, isOpen, ImGuiWindowFlags_NoSavedSettings)) {
     if (ImGui::IsWindowFocused()) {
       g_editor.currentTextTab = id;
+    }
+    // записываем id, по которому можно будет присоеденить окно
+    if (ImGui::IsWindowDocked()) {
+      if (ImGui::IsWindowFocused()) {
+        g_editor.renderInfo.lastDockNodeId = ImGui::GetWindowDockID();
+      }
+    }
+    // проверяем есть ли окно, к которому можно присоединить новое
+    else if (g_editor.renderInfo.lastDockNodeId != 0) {
+      // проверяем перетаскивается ли окно. если нет - автоматически присоединяем к существующему окну
+      if (!(ImGui::IsWindowHovered() && 
+        ImGui::IsMouseDragging(ImGuiMouseButton_Left))) {
+          ImGui::DockBuilderDockWindow(windowsLabel, g_editor.renderInfo.lastDockNodeId);
+        }
     }
 
     Array<char>& buffer = text.textBuffer;
@@ -387,19 +413,6 @@ void textWindow(Text& text, int id, bool* isOpen) {
       ImGui::Text("%s", text.filename);
     }
 
-    if (ImGui::BeginChild("ButtonsChild",  ImVec2(0, 45), 1)) {
-      if (ImGui::Button("Load file")) {
-        text.openFile();
-      }
-
-      ImGui::SameLine();
-
-      if (ImGui::Button("Save file")) {
-        text.saveFile();
-      }
-    } ImGui::EndChild();
-
-    
     if (ImGui::BeginChild("TextChild", ImVec2(0, 0), 1)) {
       {
         ImGui::TextUnformatted(buffer.mem);
@@ -408,7 +421,8 @@ void textWindow(Text& text, int id, bool* isOpen) {
         drawCursor(text.cursorIndex, buffer.mem);
       }
     } ImGui::EndChild();
-  } ImGui::End();
+  }
+  ImGui::End();
 }
 
 static int g_fontSize;
@@ -426,26 +440,99 @@ void initUI() {
   g_renderFont = false;
 }
 
+static bool isSettingsOpen = false;
+
 void renderUI() {
   if (g_renderFont) {
     rerenderFonts(g_fontSize);
   }
   
   startFrame();
-
   ImGui::PushFont(fontRegular);
+  ImGuiViewport* viewport = ImGui::GetMainViewport();
+  ImGuiStyle& style = ImGui::GetStyle();
 
-  ImGui::DockSpaceOverViewport(ImGui::GetMainViewport()->ID);
+  // верхняя панель
+  float toolbarHeight = ImGui::GetTextLineHeight() +
+  style.FramePadding.y * 2.0f +
+  style.WindowPadding.y * 2.0f;
+  {
+    ImGui::SetNextWindowPos(viewport->WorkPos);
+    ImGui::SetNextWindowSize(ImVec2(viewport->WorkSize.x, toolbarHeight)); // Высота панели инструментов
+    ImGui::SetNextWindowViewport(viewport->ID);
 
-	if (ImGui::Begin("Settings", NULL)) {
-    if (ImGui::Button("Add window")) {
-      g_editor.AddTextTab();
-    }    
-    if (ImGui::SliderInt("Font size", &g_fontSize, 10, 64)) {
-      g_renderFont = true;
+    // Флаги для неизменяемой панели инструментов
+    ImGuiWindowFlags toolbarFlags = 
+        ImGuiWindowFlags_NoDocking |
+        ImGuiWindowFlags_NoTitleBar |
+        ImGuiWindowFlags_NoResize |
+        ImGuiWindowFlags_NoMove |
+        ImGuiWindowFlags_NoScrollbar |
+        ImGuiWindowFlags_NoSavedSettings;
+
+    if (ImGui::Begin("Toolbar", nullptr, toolbarFlags))
+    {
+      if (ImGui::Button("Settings")) { isSettingsOpen = true; }
+      ImGui::SameLine();
+      if (ImGui::Button("New")) { g_editor.AddTextTab(); }
+      ImGui::SameLine();
+      if (ImGui::Button("Load file")) { 
+        if (g_editor.textTabs.size > 0) {
+          g_editor.getCurrentTextTab().openFile(); // TODO: проверка, найден ли currentTextTab?
+        }
+        else {
+          g_editor.AddTextTab();
+          g_editor.textTabs[0].openFile();
+        }
+      }
+      ImGui::SameLine();
+      if (ImGui::Button("Save file")) {
+        if (g_editor.textTabs.size > 0) {
+          g_editor.getCurrentTextTab().saveFile(); // TODO: проверка, найден ли currentTextTab?
+        }
+      }
     }
-  } ImGui::End();
+    ImGui::End();
+  }
 
+  // ImGui::DockSpaceOverViewport(ImGui::GetMainViewport()->ID);
+
+  // Теперь создаем dock space ниже панели инструментов
+  {
+    ImGui::SetNextWindowPos(ImVec2(viewport->WorkPos.x, viewport->WorkPos.y + toolbarHeight));
+    ImGui::SetNextWindowSize(ImVec2(viewport->WorkSize.x, viewport->WorkSize.y - toolbarHeight));
+    ImGui::SetNextWindowViewport(viewport->ID);
+
+    ImGuiWindowFlags dockspaceFlags = 
+        ImGuiWindowFlags_NoTitleBar |
+        ImGuiWindowFlags_NoCollapse |
+        ImGuiWindowFlags_NoResize |
+        ImGuiWindowFlags_NoMove |
+        ImGuiWindowFlags_NoBringToFrontOnFocus |
+        ImGuiWindowFlags_NoNavFocus;
+
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+    ImGui::Begin("DockSpace", nullptr, dockspaceFlags);
+    ImGui::PopStyleVar();
+
+    ImGuiID dockspace_id = ImGui::GetID("MyDockSpace");
+    ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f));
+    if (g_editor.renderInfo.lastDockNodeId == 0)
+      g_editor.renderInfo.lastDockNodeId = dockspace_id;
+
+
+    ImGui::End();
+  } 
+
+  if (isSettingsOpen) {
+    if (ImGui::Begin("Settings", &isSettingsOpen)) {
+      if (ImGui::SliderInt("Font size", &g_fontSize, 10, 64)) {
+        g_renderFont = true;
+      }
+    } ImGui::End();
+  }
+
+  // Text windows
   for (size_t i = 0; i < g_editor.textTabs.size; ) {
     if (g_editor.isTextOpen[i]) {
       textWindow(g_editor.textTabs[i], i, &g_editor.isTextOpen[i]);
@@ -453,15 +540,15 @@ void renderUI() {
     }
     else {
       // TODO: закрыть окно (должно появиться предупреждение)
-      g_editor.textTabs[i].free();
-      g_editor.isTextOpen.remove(i);
-      g_editor.textTabs.remove(i);
+      g_editor.CloseTextTab(i);
     }
   }
 
+#ifdef _DEBUG
   debugWindow();
   structTestWindow();
-  
+#endif
+
   if (g_editor.showCommandsWindow) {
     commandsWindow();
   }

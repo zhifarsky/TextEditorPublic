@@ -20,7 +20,7 @@ set EXE_NAME=editor.exe
 
 ::flags for compilation process
 :: /Gm - minimal rebuild. Если часть файлов не рекомпилируется в нужный момент -  поставить /Gm-
-set CompilerFlags=/nologo /Gm- /GR- /GS- /Zo /Od /Oi /Gs9999999 /EHa-
+set CompilerFlags=/nologo /Gm- /GR- /GS- /Zo /Od /Oi /Gs9999999 /EHa- /D_DEBUG
 set CompilerFlagsRelease=/nologo /Gm- /GR- /GS- /O2 /Oi /Gs9999999 /EHa-
 
 set LinkerFlags=/subsystem:windows /nodefaultlib %LINKER_LIBS% kernel32.lib User32.lib Gdi32.lib opengl32.lib Comdlg32.lib /stack:0x100000,0x100000
