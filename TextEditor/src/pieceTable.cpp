@@ -1,38 +1,70 @@
 #include "pieceTable.h"
 #include "tools.h"
 
-void PieceTableV2::init(char* origText, int addTextCapacity, int nodesCapacity) {
+#define DEFAULT_HISTORY_STACK_SIZE 128
+
+EditOperation::EditOperation(EditOperationType type, int start, int length) {
+  this->type = type;
+  this->start = start;
+  this->length = length;
+}
+
+void PieceTableV2::init(Arena* arena, char* origText, int addTextCapacity, int nodesCapacity) {
   original = origText;
 
-  nodes.init(nodesCapacity);
-  added.init(addTextCapacity);
+  nodes.init(arena, nodesCapacity);
+  added.init(arena, addTextCapacity);
+  undoStack.init(arena, DEFAULT_HISTORY_STACK_SIZE);
+  redoStack.init(arena, DEFAULT_HISTORY_STACK_SIZE);
 
   // первый узел с полным оригинальным текстом
   PTNode origNode;
   origNode.type = PTNodeType_Original;
   origNode.length = te_strlen(origText);
   origNode.start = 0;
-  nodes.append(origNode);
+  nodes.append(arena, origNode);
 }
 
-void PieceTableV2::insert(char* text, int count, int index) {
-  if (count <= 0)
-    return;
-  
+void PieceTableV2::insertText(Arena* arena, char* text, int count, int index, bool writeHistory) {
   PTNode newNode;
   newNode.type = PTNodeType_Added;
   newNode.start = added.size;
   newNode.length = count;
   te_assert(newNode.length > 0);
-  
+
   // TDOO: добавить в Array append сразу нескольких элементов
   for (size_t i = 0; i < count; i++) {
-    added.append(text[i]);
+    added.append(arena, text[i]);
+  }
+
+  insertNode(arena, newNode, index, writeHistory);
+}
+
+void PieceTableV2::insertNode(Arena* arena, PTNode newNode, int index, bool writeHistory) {
+  if (newNode.length <= 0)
+    return;
+  
+  // PTNode newNode;
+  // newNode.type = PTNodeType_Added;
+  // newNode.start = added.size;
+  // newNode.length = count;
+  // te_assert(newNode.length > 0);
+  
+  // TDOO: добавить в Array append сразу нескольких элементов
+  // if (appendToBuffer) {
+  //   for (size_t i = 0; i < count; i++) {
+  //     added.append(arena, text[i]);
+  //   }
+  // }
+  
+  if (writeHistory) {
+    EditOperation op(EditOperationInsert, index, newNode.length);
+    undoStack.push(arena, op);
   }
 
   // если вставка в начало
   if (index == 0) {
-    nodes.insert(newNode, 0);
+    nodes.insert(arena, newNode, 0);
     return;
   }
   
@@ -51,7 +83,7 @@ void PieceTableV2::insert(char* text, int count, int index) {
         curNode->length += newNode.length;
        }
       else {
-        nodes.insert(newNode, i + 1);
+        nodes.insert(arena, newNode, i + 1);
        }
       break;
     }
@@ -74,8 +106,8 @@ void PieceTableV2::insert(char* text, int count, int index) {
       te_assert(node1.length > 0 && node2.length > 0);
 
       nodes[i] = node1;
-      nodes.insert(node2, i + 1);
-      nodes.insert(newNode, i + 1);
+      nodes.insert(arena, node2, i + 1);
+      nodes.insert(arena, newNode, i + 1);
       break;
     }
   }
@@ -85,7 +117,7 @@ void PieceTableV2::insert(char* text, int count, int index) {
     // toText(buf);
 }
 
-void PieceTableV2::remove(int remIndex, int remCount) {
+void PieceTableV2::remove(Arena* arena, int remIndex, int remCount, bool writeHistory) {
   int textLen = 0;
   int remCountInitial = remCount;
 
@@ -97,11 +129,23 @@ void PieceTableV2::remove(int remIndex, int remCount) {
     if (relativeIndex == 0) {
       // полное удаление узла
       if (remCount == nodes[i].length) {
+        if (writeHistory) {
+          EditOperation op(EditOperationDelete, remIndex, nodes[i].length);
+          op.deletedNode = nodes[i];
+          undoStack.push(arena, op);
+        }
+
         nodes.remove(i);
         return;
       }
       // полное удаление узла и нужно продолжить удаление в след. узлах
       if (remCount > nodes[i].length) {
+        if (writeHistory) {
+          EditOperation op(EditOperationDelete, remIndex, nodes[i].length);
+          op.deletedNode = nodes[i];
+          undoStack.push(arena, op);
+        }
+
         remCount -= nodes[i].length;
         nodes.remove(i);
         i--;
@@ -109,6 +153,13 @@ void PieceTableV2::remove(int remIndex, int remCount) {
       }
       // неполное удаление узла
       else {
+        if (writeHistory) {
+          EditOperation op(EditOperationDelete, remIndex, remCount);
+          op.deletedNode = nodes[i];
+          op.deletedNode.length = remCount;
+          undoStack.push(arena, op);
+        }
+
         nodes[i].start += remCount;
         nodes[i].length -= remCount;
         return;
@@ -119,11 +170,29 @@ void PieceTableV2::remove(int remIndex, int remCount) {
     if (textLen + nodes[i].length > remIndex) {
       // удаление до правой границы узла
       if (remCount == nodes[i].length - relativeIndex) {
+        if (writeHistory) {
+          int nodeLen = nodes[i].length - (remIndex - textLen);
+          EditOperation op(EditOperationDelete, remIndex, nodeLen);
+          op.deletedNode = nodes[i];
+          op.deletedNode.start += remIndex - textLen;
+          op.deletedNode.length = nodeLen;
+          undoStack.push(arena, op);
+        }
+
         nodes[i].length = remIndex - textLen;
         return;
       }
       // удаление до правой границы и продолжить удаление в след. узлах
       if (remCount > nodes[i].length - relativeIndex) {
+        if (writeHistory) {
+          int nodeLen = nodes[i].length - (remIndex - textLen);
+          EditOperation op(EditOperationDelete, remIndex, nodeLen);
+          op.deletedNode = nodes[i];
+          op.deletedNode.start += remIndex - textLen;
+          op.deletedNode.length = nodeLen;
+          undoStack.push(arena, op);
+        }
+
         nodes[i].length = remIndex - textLen;
         remCount -= nodes[i].length - relativeIndex;
         continue;
@@ -137,8 +206,16 @@ void PieceTableV2::remove(int remIndex, int remCount) {
         node2.start += relativeIndex + remCount;
         node2.length -= (relativeIndex + remCount);
 
+        if (writeHistory) {
+          EditOperation op(EditOperationDelete, remIndex, remCount);
+          op.deletedNode = nodes[i];
+          op.deletedNode.start = node1.start + node1.length;
+          op.deletedNode.length = remCount;
+          undoStack.push(arena, op);
+        }
+
         nodes[i] = node1;
-        nodes.insert(node2, i + 1);
+        nodes.insert(arena, node2, i + 1);
         
         return;
       }

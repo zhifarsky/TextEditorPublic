@@ -1,25 +1,12 @@
 #include "pieceTable.h"
 
-#define DEFAULT_ADD_CAPACITY 1 * 1024 * 1024
+#define DEFAULT_ADD_CAPACITY 2 * 1024
 #define DEFAULT_NODES_CAPACITY 128
 #define DEFAULT_TEXT_BUFFER_SIZE 1024
-#define DEFAULT_HISTORY_STACK_SIZE 128
-
-enum EditOperationType : char {
-  EditOperationInsert,
-  EditOperationDelete
-};
-
-struct EditOperation {
-  char* text;
-  int start, length;
-  EditOperationType type;
-};
 
 struct Text {
   PieceTableV2 pt;
-  Stack<EditOperation> undoStack;
-  Stack<EditOperation> redoStack;
+  Arena arena;
 
   Array<char> textBuffer;
   char* filename;

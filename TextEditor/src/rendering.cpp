@@ -13,6 +13,9 @@
 ImFont* fontRegular;
 const char* fontRegularPath = ".\\res\\fonts\\Roboto-Regular.ttf";
 
+void structTestWindow();
+void debugWindow();
+
 void commandsWindow() {
   static char txtCommand[1024] = {0};
   
@@ -36,222 +39,6 @@ char* goToCharStart(char* text) {
     i--;
   }
   return &text[i];
-}
-
-void structTestWindow() {
-  static PieceTableV2 pt;
-  static char textBuffer[1024] = {0};
-  static char addBuffer[1024] = "test";
-  
-  if (ImGui::Begin("Piece table test")) {
-    static int cursorPos = 0;
-    static int removeCount = 0;
-    ImGui::InputText("Text to insert", addBuffer, 1024);
-    ImGui::InputInt("Cursor", &cursorPos);
-    ImGui::InputInt("Remove count", &removeCount);
-    
-    if (ImGui::Button("pt init"))     pt.init("Lorem ipsum", 1024, 1024);
-    ImGui::SameLine();
-    if (ImGui::Button("Insert text")) pt.insert(addBuffer, te_strlen(addBuffer), cursorPos);
-    ImGui::SameLine();
-    if (ImGui::Button("Remove text")) pt.remove(cursorPos, removeCount);
-
-    if (ImGui::Button("PieceTable test data")) {
-      pt.init("ipsum sit amet", 1024, 1024);
-      char* add = "Lorem deletedtext dolor";
-      int addLen = te_strlen(add);
-      memcpy(pt.added.mem, add, addLen);
-      pt.added.size = addLen;
-      PTNode node;
-      node.type = PTNodeType_Added; node.start = 0; node.length = 6;
-      pt.nodes[0] = node;
-      node.type = PTNodeType_Original; node.start = 0; node.length = 5;
-      pt.nodes[1] = node;
-      node.type = PTNodeType_Added; node.start = 17; node.length = 6;
-      pt.nodes[2] = node;
-      node.type = PTNodeType_Original; node.start = 5; node.length = 9;
-      pt.nodes[3] = node;
-      pt.nodes.size = 4;
-    }
-
-    ImGui::SeparatorText("Text:");
-    pt.toText(textBuffer);
-    ImGui::Text(textBuffer);
-    
-    ImGui::SeparatorText("Buffers:");
-    ImGui::Text("orig: \n%s \nadded: \n%s", pt.original, pt.added.mem);
-    
-    ImGui::SeparatorText("Nodes:");
-    for (size_t i = 0; i < pt.nodes.size; i++)
-    {
-      char buf[128];
-      if (pt.nodes[i].type == PTNodeType_Original) {
-        te_memcpy(buf, pt.original + pt.nodes[i].start, pt.nodes[i].length);
-      }
-      else {
-        te_memcpy(buf, pt.added.mem + pt.nodes[i].start, pt.nodes[i].length);
-      }
-      buf[pt.nodes[i].length] = '\0';
-      
-      ImGui::PushID(i);
-      ImGui::Text("%d. %s (start: %d, length: %d)", i, buf, pt.nodes[i].start, pt.nodes[i].length);
-      ImGui::PopID();
-    }
-    
-
-    ImGui::Separator();
-
-    static char textBuffer2[1024];
-    static int byteNumber = 0;
-    ImGui::Text("Inspect utf8");
-    ImGui::InputText("Text", textBuffer2, 1024);
-    ImGui::InputInt("Byte number", &byteNumber);
-
-    // int currentByte = ((int*)textBuffer2)[byteNumber];
-    char *charStart = goToCharStart(&textBuffer2[byteNumber]);
-    ImGui::Text("Char start: %d", charStart - &textBuffer2[byteNumber]);
-  } ImGui::End();
-}
-
-void debugWindow() {
-  if (ImGui::Begin("Debug")) {
-    if (ImGui::BeginTabBar("tb")) {
-      if (ImGui::BeginTabItem("tools")) {
-        static char* mem = NULL;
-        ImGui::Text("mem address: %lld", mem);
-        if (ImGui::Button("Allocate memory")) {
-          int allocSize = 64 * 1024 * 1024;
-          mem = (char*)te_malloc(allocSize);
-          for (size_t i = 0; i < allocSize; i++)
-          { 
-            mem[i] = 0;
-          }
-          
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("Free memory")) {
-          if (mem) {
-            te_free(mem);
-            mem = NULL;
-          }
-        }
-        ImGui::EndTabItem();
-      }
-
-      if (ImGui::BeginTabItem("array")) {
-        static Array<int> ar;
-        static int arInitSize = 8;
-        static int value = 5;
-        static int pos = 0;
-        static int fillSize = 0;
-
-        ImGui::InputInt("init size", &arInitSize);
-        ImGui::InputInt("value", &value);
-        ImGui::InputInt("pos", &pos);
-        ImGui::InputInt("fill size", &fillSize);
-        
-        if (ImGui::Button("init"))    ar.init(arInitSize);
-        ImGui::SameLine();
-        if (ImGui::Button("append"))  ar.append(value);
-        ImGui::SameLine();
-        if (ImGui::Button("insert"))  ar.insert(value, pos);
-        ImGui::SameLine();
-        if (ImGui::Button("remove"))  ar.remove(pos);
-        if (ImGui::Button("fill")) {
-          for (size_t i = 0; i < fillSize; i++)
-            ar.mem[i] = i;
-          ar.size = fillSize;
-        }
-
-        ImGui::Text("capacity: %d \nsize: %d", ar.capacity, ar.size);
-
-        for (size_t i = 0; i < ar.size; i++)
-        {
-          ImGui::Text("%d", ar.mem[i]);
-          ImGui::SameLine();
-        }
-        ImGui::EndTabItem();
-      }
-      if (ImGui::BeginTabItem("dynamic array")) {
-        static DynamicArray<int> ar;
-        static int arInitSize = 8;
-        static int value = 5;
-        static int pos = 0;
-        static int fillSize = 0;
-
-        ImGui::InputInt("init size", &arInitSize);
-        ImGui::InputInt("value", &value);
-        ImGui::InputInt("pos", &pos);
-        ImGui::InputInt("fill size", &fillSize);
-        
-        if (ImGui::Button("init"))    ar.init(arInitSize);
-        ImGui::SameLine();
-        if (ImGui::Button("append"))  ar.append(value);
-        ImGui::SameLine();
-        if (ImGui::Button("insert"))  ar.insert(value, pos);
-        ImGui::SameLine();
-        if (ImGui::Button("remove"))  ar.remove(pos);
-        ImGui::SameLine();
-        if (ImGui::Button("replace")) ar[pos] = value;
-        if (ImGui::Button("fill")) {
-          for (size_t i = 0; i < fillSize; i++)
-            ar.mem[i] = i;
-          ar.size = fillSize;
-        }
-
-        ImGui::Text("capacity: %d \nsize: %d", ar.capacity, ar.size);
-
-        for (size_t i = 0; i < ar.size; i++)
-        {
-          ImGui::Text("%d", ar.mem[i]);
-          ImGui::SameLine();
-        }
-        ImGui::EndTabItem();
-      } 
-      if (ImGui::BeginTabItem("utf8")) {
-        static char buf[128] = {0};
-        ImGui::InputText("Input", buf, 128);
-        
-        const char* text = "Тест";
-        int textLen = te_strlen(text) + 1;
-        ImGui::Text("%s, len: %d", text, textLen);
-        for (size_t i = 0; i < textLen; i++)
-        {
-          CharTypeU8 type = getCharTypeU8(text[i]);
-          if (!(unsigned char)text[i] == (char)text[i]) {
-            DebugBreak();
-          }
-          const char* charType = "NONE";
-          switch (type)
-          {
-          case Char1Byte:
-            charType = "1byte";
-            break;
-          case Char2Byte:
-            charType = "2byte";
-            break;
-          case Char3Byte:
-            charType = "3byte";
-            break;
-          case Char4Byte:
-            charType = "4byte";
-            break;
-          case CharMiddle:
-            charType = "middle";
-            break;
-          default:
-            break;
-          }
-
-          ImGui::PushID(i);
-          ImGui::Text("%d. Type: %s", i, charType);
-          ImGui::PopID();
-        }
-        
-        ImGui::EndTabItem();
-      } 
-    } ImGui::EndTabBar();
-  } ImGui::End();
 }
 
 void rerenderFonts(float fontSize) {
@@ -559,3 +346,251 @@ void renderUI() {
   // double time = GetTimeElapsedSeconds(programStartTime, GetTime());
   endFrame();
 }
+
+#ifdef _DEBUG
+void structTestWindow() {
+  static PieceTableV2 pt;
+  static char textBuffer[1024] = {0};
+  static char addBuffer[1024] = "test";
+  
+  if (ImGui::Begin("Piece table test")) {
+    static int cursorPos = 0;
+    static int removeCount = 0;
+    static Arena arena;
+    if (arena.capacity == 0)
+      arena.init(4 * 1024);
+
+    ImGui::InputText("Text to insert", addBuffer, 1024);
+    ImGui::InputInt("Cursor", &cursorPos);
+    ImGui::InputInt("Remove count", &removeCount);
+    
+    if (ImGui::Button("pt init"))     pt.init(&arena, "Lorem ipsum", 128, 128);
+    ImGui::SameLine();
+    if (ImGui::Button("Insert text")) pt.insertText(&arena, addBuffer, te_strlen(addBuffer), cursorPos);
+    ImGui::SameLine();
+    if (ImGui::Button("Remove text")) pt.remove(&arena, cursorPos, removeCount);
+
+    if (ImGui::Button("PieceTable test data")) {
+      pt.init(&arena, "ipsum sit amet", 128, 128);
+      char* add = "Lorem deletedtext dolor";
+      int addLen = te_strlen(add);
+      memcpy(pt.added.mem, add, addLen);
+      pt.added.size = addLen;
+      PTNode node;
+      node.type = PTNodeType_Added; node.start = 0; node.length = 6;
+      pt.nodes[0] = node;
+      node.type = PTNodeType_Original; node.start = 0; node.length = 5;
+      pt.nodes[1] = node;
+      node.type = PTNodeType_Added; node.start = 17; node.length = 6;
+      pt.nodes[2] = node;
+      node.type = PTNodeType_Original; node.start = 5; node.length = 9;
+      pt.nodes[3] = node;
+      pt.nodes.size = 4;
+    }
+
+    ImGui::SeparatorText("Text:");
+    pt.toText(textBuffer);
+    ImGui::Text(textBuffer);
+    
+    ImGui::SeparatorText("Buffers:");
+    ImGui::Text("orig: \n%s \nadded: \n%s", pt.original, pt.added.mem);
+    
+    ImGui::SeparatorText("Nodes:");
+    for (size_t i = 0; i < pt.nodes.size; i++)
+    {
+      char buf[128];
+      if (pt.nodes[i].type == PTNodeType_Original) {
+        te_memcpy(buf, pt.original + pt.nodes[i].start, pt.nodes[i].length);
+      }
+      else {
+        te_memcpy(buf, pt.added.mem + pt.nodes[i].start, pt.nodes[i].length);
+      }
+      buf[pt.nodes[i].length] = '\0';
+      
+      ImGui::PushID(i);
+      ImGui::Text("%d. %s (start: %d, length: %d)", i, buf, pt.nodes[i].start, pt.nodes[i].length);
+      ImGui::PopID();
+    }
+    
+
+    ImGui::Separator();
+
+    static char textBuffer2[1024];
+    static int byteNumber = 0;
+    ImGui::Text("Inspect utf8");
+    ImGui::InputText("Text", textBuffer2, 1024);
+    ImGui::InputInt("Byte number", &byteNumber);
+
+    // int currentByte = ((int*)textBuffer2)[byteNumber];
+    char *charStart = goToCharStart(&textBuffer2[byteNumber]);
+    ImGui::Text("Char start: %d", charStart - &textBuffer2[byteNumber]);
+  } ImGui::End();
+}
+
+void ArenaDebug(Arena* arena, int* size) {
+  int i = 1;
+    ImGui::InputInt("Size", size);
+  if (ImGui::Button("init"))    arena->init(*size);
+  ImGui::SameLine();
+  if (ImGui::Button("alloc"))   arena->alloc(*size);
+  ImGui::SameLine();
+  if (ImGui::Button("clear"))   arena->clear();
+  ImGui::SameLine();
+  if (ImGui::Button("release")) arena->release();
+  ImGui::SameLine();
+  if (ImGui::Button("memest")) {
+    Arena* node = arena;
+    while (node)
+    {
+      for (size_t i = 0; i < node->size; i++) {
+        node->mem[i] = 0;
+      }
+      node = node->next;
+    }
+  }
+
+  ImGui::Text("Nodes:");
+  Arena* node = arena;
+  while (node) {
+    ImGui::Text("%d) size: %d, capacity: %d next: %p", i, node->size, node->capacity, node->next);
+    node = node->next;
+    i++;
+  }
+}
+
+void debugWindow() {
+  static Arena arena;
+
+  if (ImGui::Begin("Debug")) {
+    if (arena.capacity == 0) {
+      arena.init(4 * 1024);
+    }  
+
+    if (ImGui::BeginTabBar("tb")) {
+      if (ImGui::BeginTabItem("tools")) {
+        ImGui::EndTabItem();
+      }
+
+      if (ImGui::BeginTabItem("Arena")) {
+        static Arena arena;
+        static int size = 64;
+        ArenaDebug(&arena, &size);
+
+        ImGui::EndTabItem();
+      }
+      if (ImGui::BeginTabItem("array")) {
+        static Array<int> ar;
+        static int arInitSize = 8;
+        static int value = 5;
+        static int pos = 0;
+        static int fillSize = 0;
+
+        ImGui::InputInt("init size", &arInitSize);
+        ImGui::InputInt("value", &value);
+        ImGui::InputInt("pos", &pos);
+        ImGui::InputInt("fill size", &fillSize);
+        
+        if (ImGui::Button("init"))    ar.init(&arena, arInitSize);
+        ImGui::SameLine();
+        if (ImGui::Button("append"))  ar.append(value);
+        ImGui::SameLine();
+        if (ImGui::Button("insert"))  ar.insert(value, pos);
+        ImGui::SameLine();
+        if (ImGui::Button("remove"))  ar.remove(pos);
+        if (ImGui::Button("fill")) {
+          for (size_t i = 0; i < fillSize; i++)
+            ar.mem[i] = i;
+          ar.size = fillSize;
+        }
+
+        ImGui::Text("capacity: %d \nsize: %d", ar.capacity, ar.size);
+
+        for (size_t i = 0; i < ar.size; i++)
+        {
+          ImGui::Text("%d", ar.mem[i]);
+          ImGui::SameLine();
+        }
+        ImGui::EndTabItem();
+      }
+      if (ImGui::BeginTabItem("dynamic array")) {
+        static DynamicArray<int> ar;
+        static int arInitSize = 8;
+        static int value = 5;
+        static int pos = 0;
+        static int fillSize = 0;
+
+        ImGui::InputInt("init size", &arInitSize);
+        ImGui::InputInt("value", &value);
+        ImGui::InputInt("pos", &pos);
+        ImGui::InputInt("fill size", &fillSize);
+        
+        if (ImGui::Button("init"))    ar.init(&arena, arInitSize);
+        ImGui::SameLine();
+        if (ImGui::Button("append"))  ar.append(&arena, value);
+        ImGui::SameLine();
+        if (ImGui::Button("insert"))  ar.insert(&arena, value, pos);
+        ImGui::SameLine();
+        if (ImGui::Button("remove"))  ar.remove(pos);
+        ImGui::SameLine();
+        if (ImGui::Button("replace")) ar[pos] = value;
+        if (ImGui::Button("fill")) {
+          for (size_t i = 0; i < fillSize; i++)
+            ar.mem[i] = i;
+          ar.size = fillSize;
+        }
+
+        ImGui::Text("capacity: %d \nsize: %d", ar.capacity, ar.size);
+
+        for (size_t i = 0; i < ar.size; i++)
+        {
+          ImGui::Text("%d", ar.mem[i]);
+          ImGui::SameLine();
+        }
+        ImGui::EndTabItem();
+      } 
+      if (ImGui::BeginTabItem("utf8")) {
+        static char buf[128] = {0};
+        ImGui::InputText("Input", buf, 128);
+        
+        const char* text = "Тест";
+        int textLen = te_strlen(text) + 1;
+        ImGui::Text("%s, len: %d", text, textLen);
+        for (size_t i = 0; i < textLen; i++)
+        {
+          CharTypeU8 type = getCharTypeU8(text[i]);
+          if (!(unsigned char)text[i] == (char)text[i]) {
+            DebugBreak();
+          }
+          const char* charType = "NONE";
+          switch (type)
+          {
+          case Char1Byte:
+            charType = "1byte";
+            break;
+          case Char2Byte:
+            charType = "2byte";
+            break;
+          case Char3Byte:
+            charType = "3byte";
+            break;
+          case Char4Byte:
+            charType = "4byte";
+            break;
+          case CharMiddle:
+            charType = "middle";
+            break;
+          default:
+            break;
+          }
+
+          ImGui::PushID(i);
+          ImGui::Text("%d. Type: %s", i, charType);
+          ImGui::PopID();
+        }
+        
+        ImGui::EndTabItem();
+      } 
+    } ImGui::EndTabBar();
+  } ImGui::End();
+}
+#endif

@@ -15,6 +15,7 @@ struct Editor {
   DynamicArray<Text> textTabs;
   DynamicArray<bool> isTextOpen;
   RenderInfo renderInfo;
+  Arena arena;
   int currentTextTab;
   bool showCommandsWindow;
   

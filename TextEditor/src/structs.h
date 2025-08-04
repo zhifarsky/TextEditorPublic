@@ -1,5 +1,9 @@
 #pragma once
 #include "tools.h"
+#include "typedefs.h"
+
+#define DYNAMIC_ARRAY_GROW_FACTOR 2
+#define ARENA_GROW_FACTOR 2
 
 void DebugWarningHandle(const char* msg);
 
@@ -19,18 +23,27 @@ struct ivec3 {
   int x, y, z;
 };
 
-// struct DynamicArray {
-//   void* mem;
-//   int capacity;
-//   int size;
+#pragma region Memory Management
+// Chained Arena - расширяется если не хватает места
+// TDOO: free list
+struct Arena {
+	u8* mem = NULL;
+	Arena* next = NULL;
+	u32 size = 0, capacity = 0;
+
+	void init(u32 capacity);
+	void release();
+  void clear();
+	void* alloc(u32 size);
+  void* realloc(void* oldMem, u32 oldSize, u32 newSize);
+};
+
+// struct TextBuffer {
+//   char* text;
+//   int capacity, size;
 // };
 
-// void dynamicArrayInit(DynamicArray* dynamicArray) {}
-
-struct TextBuffer {
-  char* text;
-  int capacity, size;
-};
+#pragma endregion
 
 // в коде необходимо писать, например template class Array<int>, если есть ошибки линковки
 template<typename T>
@@ -42,14 +55,10 @@ struct Array {
     return mem[i];
   }
 
-  void init(int capacity) {
+  void init(Arena* arena, int capacity) {
     size = 0;
     this->capacity = capacity;
-    mem = (T*)te_malloc(sizeof(T) * capacity);
-  }
-
-  void free() {
-    te_free(mem);
+    mem = (T*)arena->alloc(sizeof(T) * capacity);
   }
 
   void append(T value) {
@@ -84,8 +93,7 @@ struct Array {
   }
 };
 
-#define DYNAMIC_ARRAY_GROW_FACTOR 2
-
+// TODO: убрать функции не работающие с ареной?
 template<typename T>
 struct DynamicArray {
   T* mem;
@@ -95,44 +103,39 @@ struct DynamicArray {
     return mem[i];
   }
 
-  void grow() {
-    int test = sizeof(T);
-    char buf[64];
-    buf[0] = '0' + test;
-    buf[1] = '\0';
-    OutputDebugStringA(buf);
-    mem = (T*)te_realloc(mem, size * sizeof(T), capacity * DYNAMIC_ARRAY_GROW_FACTOR * sizeof(T));
-    capacity *= DYNAMIC_ARRAY_GROW_FACTOR;
-  }
+  void grow(Arena* arena, int newCapacity = 0) {
+    if (newCapacity == 0 || newCapacity <= capacity)
+      newCapacity = capacity * DYNAMIC_ARRAY_GROW_FACTOR;
 
-  void reserve(int newCapacity) {
-    if (capacity >= newCapacity)
-      return;
+    mem = (T*)arena->realloc(mem, size * sizeof(T), newCapacity * sizeof(T));
 
-    mem = (T*)te_realloc(mem, capacity, newCapacity);
     capacity = newCapacity;
   }
 
-  void init(int capacity) {
+  void reserve(Arena* arena, int newCapacity) {
+    if (capacity >= newCapacity)
+      return;
+
+    mem = (T*)arena->realloc(mem, capacity, newCapacity);
+    capacity = newCapacity;
+  }
+
+  void init(Arena* arena, int capacity) {
     size = 0;
     this->capacity = capacity;
-    mem = (T*)te_malloc(sizeof(T) * capacity);
+    mem = (T*)arena->alloc(sizeof(T) * capacity);
   }
 
-  void free() {
-    te_free(mem);
-  }
-
-  void append(T value) {
+  void append(Arena* arena, T value) {
     if (size >= capacity) {
-      grow();
+      grow(arena);
     }
     mem[size++] = value;
   }
 
-  void insert(T value, int pos) {
+  void insert(Arena* arena, T value, int pos) {
     if (size >= capacity) {
-      grow();
+      grow(arena);
     }
     for (int i = size; i > pos; i--)
       mem[i] = mem[i-1];
@@ -156,16 +159,12 @@ template<typename T>
 struct Stack {
   DynamicArray<T> items;
 
-  void init(int capacity) {
-    items.init(capacity);
-  }
-  
-  void free() {
-    items.free();
+  void init(Arena* arena, int capacity) {
+    items.init(arena, capacity);
   }
 
-  void push(T item) {
-    items.append(item);
+  void push(Arena* arena, T item) {
+    items.append(arena, item);
   }
 
   T pop() {

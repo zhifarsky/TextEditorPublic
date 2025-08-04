@@ -48,8 +48,9 @@ Editor g_editor = {0};
 LRESULT CALLBACK WindowProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam) {
 		if (ImGui_ImplWin32_WndProcHandler(window, msg, wParam, lParam))
 			return true;
-		// DefWindowProcWFunc pDefWindowProcW = (DefWindowProcWFunc)GetProcAddress(hUser32, "DefWindowProcW");
+
 		LRESULT result = 0;
+		// LRESULT result = DefWindowProcW(window, msg, wParam, lParam);
 
     switch (msg) {
     case WM_DESTROY:
@@ -95,11 +96,9 @@ LRESULT CALLBACK WindowProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
         result = DefWindowProcW(window, msg, wParam, lParam);
 			break;
     }
+
     return result;
-
 }
-
-
 
 int MainLoop(HWND window) {
 		MSG message;
@@ -128,7 +127,6 @@ int MainLoop(HWND window) {
 	DestroyWindow(window);
 	return 0;
 }
-
 
 int WinMain(
   HINSTANCE Instance,
@@ -221,10 +219,8 @@ int WinMain(
 			ImGui_ImplWin32_Init(renderInfo.window);
 			ImGui_ImplOpenGL3_Init(glsl_version);
 			
-			initFonts(INITIAL_FONT_SIZE);
 			initUI();
 			g_editor.init();
-		  OpenClipboard(renderInfo.window);
 			MainLoop(renderInfo.window);
 		}
 	} 

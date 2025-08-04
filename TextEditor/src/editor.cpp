@@ -5,8 +5,9 @@
 
 void Editor::init(int tabsCapacity) {
   currentTextTab = 0;
-  textTabs.init(tabsCapacity);
-  isTextOpen.init(tabsCapacity);
+  arena.init(16 * 1024);
+  textTabs.init(&arena, tabsCapacity);
+  isTextOpen.init(&arena, tabsCapacity);
 }
 
 Text& Editor::getCurrentTextTab() {
@@ -16,8 +17,8 @@ Text& Editor::getCurrentTextTab() {
 void Editor::AddTextTab() {
   Text text;
   text.init();
-  textTabs.append(text);
-  isTextOpen.append(true);
+  textTabs.append(&arena, text);
+  isTextOpen.append(&arena, true);
 }
 
 void Editor::CloseTextTab(int tabIndex) {
@@ -31,11 +32,6 @@ void Editor::cursorMoveLeft() {
   
   // на один символ
   if (!te_IsKeyDown(VK_CONTROL)) {
-    // if (text.cursorIndex2 < 1) {
-    //   text.cursorIndex = text.cursorIndex2;
-    //   return;
-    // }
-
     int offset = findOffsetToCharStartU8(&text.textBuffer[max(text.cursorIndex2 - 1, 0)]);
     if (!te_IsKeyDown(VK_SHIFT)) // перемещение курсора
       text.cursorIndex = text.cursorIndex2 = max(text.cursorIndex + offset - 1, 0);
@@ -52,57 +48,62 @@ void Editor::cursorMoveLeft() {
         break;
       }
     }
-    if (!te_IsKeyDown(VK_SHIFT))
-      text.cursorIndex = max(i, 0);
-    text.cursorIndex2 = max(i, 0);
+
+    int cursorIndex = max(i, 0);
+    if (te_IsKeyDown(VK_SHIFT))
+      text.cursorIndex2 = cursorIndex;
+    else
+      text.cursorIndex = text.cursorIndex2 = cursorIndex;
   }
 }
 
 void Editor::cursorMoveRight() {
   Text& text = getCurrentTextTab();
   
-  // if (text.cursorIndex < text.textBuffer.size) {
-    // на один символ
-    if (!te_IsKeyDown(VK_CONTROL)) {
-      int offset = getCharLenU8(text.textBuffer[text.cursorIndex]);
-      if (!te_IsKeyDown(VK_SHIFT)) {
-        text.cursorIndex = min(text.cursorIndex + offset, text.textBuffer.size);
-        text.cursorIndex2 = text.cursorIndex;
-      }
-      // выделение текста
-      else {
-        text.cursorIndex2 = min(text.cursorIndex2 + offset, text.textBuffer.size);
-      }
+  // на один символ
+  if (!te_IsKeyDown(VK_CONTROL)) {
+    int offset = getCharLenU8(text.textBuffer[text.cursorIndex]);
+    if (!te_IsKeyDown(VK_SHIFT)) {
+      text.cursorIndex = min(text.cursorIndex + offset, text.textBuffer.size);
+      text.cursorIndex2 = text.cursorIndex;
     }
-    // пропустить все буквы
+    // выделение текста
     else {
-      int i = te_IsKeyDown(VK_SHIFT) ? text.cursorIndex2 + 1 : text.cursorIndex + 1;
-      for (; i < text.textBuffer.size; i++)
-      {
-        char c = text.textBuffer[i];
-        if (!IsLetter(c)) {
-          break;
-        }
-      }
-      if (!te_IsKeyDown(VK_SHIFT))
-        text.cursorIndex = min(i, text.textBuffer.size);
-      text.cursorIndex2 = min(i, text.textBuffer.size);
+      text.cursorIndex2 = min(text.cursorIndex2 + offset, text.textBuffer.size);
     }
-  // }
+  }
+  // пропустить все буквы
+  else {
+    int i = te_IsKeyDown(VK_SHIFT) ? text.cursorIndex2 + 1 : text.cursorIndex + 1;
+    for (; i < text.textBuffer.size; i++)
+    {
+      char c = text.textBuffer[i];
+      if (!IsLetter(c)) {
+        break;
+      }
+    }
+
+    int cursorIndex = min(i, text.textBuffer.size);
+    if (te_IsKeyDown(VK_SHIFT))
+      text.cursorIndex2 = cursorIndex;
+    else
+      text.cursorIndex = text.cursorIndex2 = cursorIndex;
+  }
 }
 
 // переход на строку вверх
 void Editor::cursorMoveUp()
 {
   Text& text = getCurrentTextTab();
-  
+  int cursorIndex = te_IsKeyDown(VK_SHIFT) ? text.cursorIndex2 : text.cursorIndex;
+
   // находим начало и длину текущей строки
   int lineLen = 0;
-  int i = text.cursorIndex;
+  int i = cursorIndex;
   for (; i > 0; i--)
   {
     if (text.textBuffer[i-1] == '\n') {
-      lineLen = text.cursorIndex - i;
+      lineLen = cursorIndex - i;
       break;
     }
   }
@@ -118,35 +119,46 @@ void Editor::cursorMoveUp()
   }
   int prevLineLen = max(i - 1 - prevLineStart, 0);
 
-  text.cursorIndex = text.cursorIndex2 = prevLineStart + min(lineLen, prevLineLen);
+  cursorIndex = prevLineStart + min(lineLen, prevLineLen);
+
+  if (te_IsKeyDown(VK_SHIFT))
+    text.cursorIndex2 = cursorIndex;
+  else
+    text.cursorIndex = text.cursorIndex2 = cursorIndex;
 }
 
 // переход на строку вниз
 void Editor::cursorMoveDown()
 {
   Text& text = getCurrentTextTab();
-  
+  int cursorIndex = te_IsKeyDown(VK_SHIFT) ? text.cursorIndex2 : text.cursorIndex;
+
   // находим начало и длину текущей строки
   int lineLen = 0;
-  int i = text.cursorIndex;
+  int i = cursorIndex;
   for (; i > 0; i--)
   {
     if (text.textBuffer[i-1] == '\n') {
       break;
     }
   }
-  lineLen = text.cursorIndex - i;
+  lineLen = cursorIndex - i;
 
   int nextLineStart = 0;
   // находим начало следующей строки
-  for (int j = text.cursorIndex; j < text.textBuffer.size; j++) {
+  for (int j = cursorIndex; j < text.textBuffer.size; j++) {
     if (text.textBuffer[j] == '\n') {
       nextLineStart = j + 1;
       break;
     }
   }
 
-  text.cursorIndex = text.cursorIndex2 = min(nextLineStart + lineLen, text.textBuffer.size);
+  cursorIndex = min(nextLineStart + lineLen, text.textBuffer.size);
+
+  if (te_IsKeyDown(VK_SHIFT))
+    text.cursorIndex2 = cursorIndex;
+  else
+    text.cursorIndex = text.cursorIndex2 = cursorIndex;
 }
 
 void CopyToClipboard(const char* text, HWND window) {
@@ -315,7 +327,6 @@ void Editor::ProcessHotkey(HWND window) {
   //   getCurrentTextTab().undo();
   // }
 
-
   static bool redo = false;
   if (hotkey(te_IsKeyDown(VK_CONTROL) && te_IsKeyDown('Y'), &redo)) {
     getCurrentTextTab().redo();
@@ -429,6 +440,13 @@ void Editor::ProcessChar(unsigned int key) {
   // TODO: заменить winapi функцию на собственную реализацию 
   char utf8Buffer[5] = {0};
   int bytesWritten = WideCharToMultiByte(CP_UTF8, 0, &wideChar, 1, utf8Buffer, sizeof(utf8Buffer) - 1, NULL, NULL);
+
+  if (text.cursorIndex != text.cursorIndex2) {
+    int start = min(text.cursorIndex, text.cursorIndex2);
+    int end = max(text.cursorIndex, text.cursorIndex2);
+    text.removeChars(end - start, start);
+    text.cursorIndex = text.cursorIndex2 = start; 
+  }
 
   text.insertChars(utf8Buffer, bytesWritten, text.cursorIndex);
   text.cursorIndex += bytesWritten;

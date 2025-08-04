@@ -11,37 +11,25 @@ void Text::init(int addCapacity, int nodesCapacity, int textBufferSize) {
   windowFocused = false; 
   textChanged = true;
   
-  pt.init("", addCapacity, nodesCapacity);
-  undoStack.init(DEFAULT_HISTORY_STACK_SIZE);
-  redoStack.init(DEFAULT_HISTORY_STACK_SIZE);
-  textBuffer.init(textBufferSize);
+  arena.init(16 * 1024);
+  pt.init(&arena, "", addCapacity, nodesCapacity);
+
+  textBuffer.init(&arena, textBufferSize);
 }
 
 void Text::free() {
-  pt.added.free();
-  pt.nodes.free();
-  undoStack.free();
-  redoStack.free();
-  textBuffer.free();
+  arena.release();
 }
 
 void Text::insertChar(char c, int pos) {
   textChanged = true;
-  pt.insert(&c, 1, pos);
+  pt.insertText(&arena, &c, 1, pos);
 }
 
 
 void Text::insertChars(char* c, int charCount, int pos) {
   textChanged = true;
-  // char* insertedText = pt.added.mem + pt.added.size;
-  pt.insert(c, charCount, pos);
-
-  EditOperation op;
-  op.type = EditOperationInsert;
-  op.start = pos;
-  op.length = charCount;
-  // op.text = insertedText;
-  undoStack.push(op);
+  pt.insertText(&arena, c, charCount, pos);
 }
 
 bool Text::removeChars(int count, int pos) {
@@ -49,36 +37,29 @@ bool Text::removeChars(int count, int pos) {
     return false;
 
   textChanged = true;
-  pt.remove(pos, count);
-  
-  EditOperation op;
-  op.type = EditOperationDelete;
-  op.start = pos;
-  op.length = count;
-  undoStack.push(op);
-
+  pt.remove(&arena, pos, count);
   return true;
 }
 
 void Text::undo() {
-  if (undoStack.size() < 1)
+  if (pt.undoStack.size() < 1)
     return;
 
-  EditOperation op = undoStack.pop();
-  redoStack.push(op);
+  EditOperation op = pt.undoStack.pop();
+  pt.redoStack.push(&arena, op);
   
   switch (op.type) {
     // если нужно отменить вставку - делаем удаление
     case EditOperationInsert: {
-      pt.remove(op.start, op.length);
+      pt.remove(&arena, op.start, op.length, false);
       cursorIndex = cursorIndex2 = op.start;
       textChanged = true;
     } break;
 
   // если нужно отменить удаление - делаем вставку
     case EditOperationDelete: {
-      // pt.insert(op.text, op.length, op.start);
-      // textChanged = true;
+      pt.insertNode(&arena, op.deletedNode, op.start, false);
+      textChanged = true;
     } break;
 
     default: 
@@ -87,7 +68,29 @@ void Text::undo() {
 }
 
 void Text::redo() {
+  // if (pt.redoStack.size() < 1)
+  //   return;
 
+  // EditOperation op = pt.redoStack.pop();
+  // pt.undoStack.push(&arena, op);
+  
+  // switch (op.type) {
+  // // если нужно вернуть удаление
+  //   case EditOperationDelete: {
+  //     pt.remove(&arena, op.start, op.length, false);
+  //     cursorIndex = cursorIndex2 = op.start;
+  //     textChanged = true;
+  //   } break;
+
+  //   // если нужно вернуть вставку
+  //   case EditOperationInsert: {
+  //     pt.insertNode(&arena, op.deletedNode, op.start, false);
+  //     textChanged = true;
+  //   } break;
+
+  //   default: 
+  //     OutputDebugStringA("Unknown edit operation\n");
+  // }
 }
 
 int Text::getLength() {
@@ -98,8 +101,8 @@ int Text::toText() {
   if (textChanged) {
     int textLen = getLength();
     if (textLen > textBuffer.size) {
-      textBuffer.free();
-      textBuffer.init(textLen * 2);
+      //textBuffer.free();
+      textBuffer.init(&arena, textLen * 2);
     }
     textChanged = false;
     return pt.toText(textBuffer.mem);
@@ -128,7 +131,7 @@ bool Text::openFile(int addCapacity, int nodesCapacity) {
 
   DWORD bytesRead;
   if (ReadFile(hFile, buffer, fileSize, &bytesRead, NULL)) {
-    pt.init(buffer, addCapacity, nodesCapacity);
+    pt.init(&arena, buffer, addCapacity, nodesCapacity);
     textChanged = true;
     CloseHandle(hFile);
     return true;

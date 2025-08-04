@@ -46,11 +46,11 @@ void te_puts(const char* str) {
 	}
 }
 
-void* te_malloc(size_t size) {
+void* te_malloc(u32 size) {
 	return VirtualAlloc(0, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 }
 
-void* te_calloc(size_t count, size_t size) {
+void* te_calloc(u32 count, u32 size) {
 	char* mem = (char*)VirtualAlloc(0, count * size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 	// TDOO: может VirtualAlloc сразу возвращать зануленную память?
 	for (size_t i = 0; i < count * size; i++) {

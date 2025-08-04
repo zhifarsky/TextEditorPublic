@@ -1,5 +1,6 @@
 #pragma once
 #include <windows.h>
+#include "typedefs.h"
 
 void ErrorHandle();
 void WarningHandle(const char* msg = "ERROR");
@@ -10,8 +11,8 @@ int te_strlen(const char* str);
 
 void te_puts(const char* str);
 
-void* te_malloc(size_t size);
-void* te_calloc(size_t count, size_t size);
+void* te_malloc(u32 size);
+void* te_calloc(u32 count, u32 size);
 void* te_realloc(void* oldMem, size_t oldSize, size_t newSize);
 void te_free(void* mem);
 void te_memcpy(void *destination, void *source, size_t size);
@@ -28,7 +29,8 @@ bool PickNewFile(HWND window, char *outFilename, int outFilenameMaxSize);
 
 bool IsLetter(char c);
 
-#define te_IsKeyDown(vkey) (GetAsyncKeyState(vkey) & 0x8000) != 0
+//#define te_IsKeyDown(vkey) (GetAsyncKeyState(vkey) & 0x8000) != 0
+#define te_IsKeyDown(vkey) (GetKeyState(vkey) & 0x8000) != 0
 
 #define te_assert(expr) \
   do { \
