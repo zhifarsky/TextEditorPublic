@@ -1,5 +1,6 @@
 # Текстовый редактор
 - В основе структура данных [Piece Table](https://en.wikipedia.org/wiki/Piece_table)
+- Управление памяью при помощи стратегии [Arena](https://www.rfleury.com/p/untangling-lifetimes-the-arena-allocator)
 - Собирается без стандартных библиотек C/C++, не требует зависимостей кроме [ImGui](https://github.com/ocornut/imgui), включенного в проект
 - Реализованы самописные аналоги стандартных функций
 - Поддерживает UTF-8
