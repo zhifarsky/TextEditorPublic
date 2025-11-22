@@ -1,4 +1,4 @@
-// удаление CRT
+ // удаление CRT
 // https://hero.handmade.network/forums/code-discussion/t/94-guide_-_how_to_avoid_c_c_runtime_on_windows
 #include <math.h>
 #include <Windows.h>
@@ -104,9 +104,7 @@ int MainLoop(HWND window) {
 		MSG message;
 	while (programRunning) {
 			// while (programRunning && PeekMessageA(&message, 0, 0, 0, PM_REMOVE)) {
-			if (PeekMessageA(&message, window, 0, 0, PM_REMOVE)) {
-					switch (message.message) {
-					}
+			if (PeekMessageA(&message, NULL, 0, 0, PM_REMOVE)) {
 				TranslateMessage(&message);
 				DispatchMessageA(&message);
 			}
