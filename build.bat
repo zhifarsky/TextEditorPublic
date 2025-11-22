@@ -14,7 +14,7 @@ if not "%1"=="RELEASE" (
 )
 set INCLUDE_PATH="..\deps"
 
-set FilesToBuild=..\src\*.cpp
+set FilesToBuild=..\src\win32_editor.cpp
 
 set EXE_NAME=editor.exe
 
@@ -23,7 +23,7 @@ set EXE_NAME=editor.exe
 set CompilerFlags=/nologo /Gm- /GR- /GS- /Zo /Od /Oi /Gs9999999 /EHa- /D_DEBUG
 set CompilerFlagsRelease=/nologo /Gm- /GR- /GS- /O2 /Oi /Gs9999999 /EHa-
 
-set LinkerFlags=/subsystem:windows /nodefaultlib %LINKER_LIBS% kernel32.lib User32.lib Gdi32.lib opengl32.lib Comdlg32.lib /stack:0x100000,0x100000
+set LinkerFlags=/subsystem:console /nodefaultlib %LINKER_LIBS% kernel32.lib User32.lib Gdi32.lib opengl32.lib Comdlg32.lib /stack:0x100000,0x100000
 
 ::create directories
 mkdir "%cd%\TextEditor\build"
@@ -60,4 +60,7 @@ exit /b 1
 
 :end
 popd
+:: RUN
+echo ==================================
+call "%cd%\TextEditor\build\debug\editor.exe"
 @REM endlocal

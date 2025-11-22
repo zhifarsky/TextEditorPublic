@@ -1,50 +1,27 @@
 #pragma once
-#include <windows.h>
-#include "text.h"
+#include <stdint.h>
 
-#define DEFAULT_TABS_CAPACITY 32
+#include <GL/gl.h>
+#include <GL/wglext.h>
 
-struct RenderInfo {
-  HDC deviceContext;
-  HGLRC oglContext;
-  HWND window;
-  unsigned int lastDockNodeId = 0;
+#include <imgui/imgui.h>
+#include <imgui/imgui_impl_opengl3.h>
+#include <imgui/imgui_impl_win32.h>
+
+typedef int16_t s16;
+typedef uint16_t u16;
+typedef int32_t s32;
+typedef uint32_t u32;
+typedef int64_t s64;
+typedef uint64_t u64;
+
+typedef float f32;
+typedef double f64;
+
+struct program_memory {
+    void * stub;
 };
 
-struct Editor {
-  DynamicArray<Text> textTabs;
-  DynamicArray<bool> isTextOpen;
-  RenderInfo renderInfo;
-  Arena arena;
-  int currentTextTab;
-  bool showCommandsWindow;
-  
-  void init(int tabsCapacity = DEFAULT_TABS_CAPACITY);
-
-  void cursorMoveLeft();
-  void cursorMoveRight();
-  void cursorMoveUp();
-  void cursorMoveDown();
-
-  void ProcessHotkey(HWND window);
-  void ProcessKeydown(unsigned int key);
-  void ProcessChar(unsigned int key);
-
-  Text& getCurrentTextTab();
-  void AddTextTab();
-  void CloseTextTab(int tabIndex);
+struct program_input {
+    void * stub;
 };
-
-// глобальноые состояние программы
-extern Editor g_editor;
-
-// enum te_hotkeys {
-//   hk_copy,
-//   hk_paste,
-//   hk_commands,
-//   hk_COUNT
-// };
-
-
-
-int getUTF8ByteCount (unsigned int c);

@@ -1,0 +1,16 @@
+// raddbg 0.9.17 project file
+
+recent_file: path: "TextEditor/src/win32_editor.cpp"
+recent_file: path: "TextEditor/src/main.cpp"
+target:
+{
+  executable: "TextEditor/build/debug/editor.exe"
+  working_directory: "TextEditor/build/debug"
+  enabled: 1
+}
+breakpoint: source_location: "TextEditor/src/win32_editor.cpp:146:1"
+breakpoint:
+{
+  source_location: "TextEditor/src/win32_editor.cpp:206:1"
+  hit_count: 1
+}
