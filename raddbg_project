@@ -1,5 +1,6 @@
-// raddbg 0.9.17 project file
+// raddbg 0.9.24 project file
 
+recent_file: path: "TextEditor/src/data_structures.cpp"
 recent_file: path: "TextEditor/src/win32_editor.cpp"
 recent_file: path: "TextEditor/src/main.cpp"
 target:
@@ -8,9 +9,13 @@ target:
   working_directory: "TextEditor/build/debug"
   enabled: 1
 }
-breakpoint: source_location: "TextEditor/src/win32_editor.cpp:146:1"
+debug_info:
+{
+  path: "D:/dev/cpp/TextEditorPublic_unity/TextEditor/build/debug/editor.pdb"
+  timestamp: 66199165969286
+}
 breakpoint:
 {
-  source_location: "TextEditor/src/win32_editor.cpp:206:1"
-  hit_count: 1
+  source_location: "TextEditor/src/win32_editor.cpp:264:1"
+  hit_count: 0
 }

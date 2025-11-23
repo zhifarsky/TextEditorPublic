@@ -61,6 +61,6 @@ exit /b 1
 :end
 popd
 :: RUN
-echo ==================================
-call "%cd%\TextEditor\build\debug\editor.exe"
+@REM echo ==================================
+@REM call "%cd%\TextEditor\build\debug\editor.exe"
 @REM endlocal

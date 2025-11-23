@@ -1,6 +1,9 @@
 #include <windows.h>
 
 #include "editor.h"
+
+#include "tools.cpp"
+#include "data_structures.cpp"
 #include "editor.cpp"
 
 extern "C" int _fltused = 0x9875; // чтобы работал float
@@ -15,6 +18,8 @@ LRESULT CALLBACK WindowProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
 //
 
 static bool g_ProgramRunning;
+static event_queue g_EventQueue;
+
 static HANDLE console;
 
 struct {
@@ -23,8 +28,11 @@ struct {
 	HWND window;
 } renderInfo; // TODO: временно, убрать
 
+void* win32_debug_malloc(u64 size) {
+	return VirtualAlloc(0, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+}
 
-void win32_Print(const char* msg) {
+void platform_Print(const char* msg) {
 	if (!console)
 		console = GetStdHandle(STD_OUTPUT_HANDLE);
     WriteConsoleA(console, msg, strlen(msg), NULL, 0);
@@ -32,9 +40,9 @@ void win32_Print(const char* msg) {
 
 void win32_ErrorHandle(const char* msg = NULL) {
 	DWORD errorCode = GetLastError();
-	win32_Print("\nERROR");
+	platform_Print("\nERROR");
 	if (msg)
-		win32_Print(msg);
+		platform_Print(msg);
 	ExitProcess(EXIT_FAILURE);
 }
 
@@ -134,6 +142,8 @@ int WinMain(
 			// ImGui::SetCurrentContext(imguiContext);
 			ImGuiIO& io = ImGui::GetIO();
 			io.ConfigFlags |= ImGuiConfigFlags_DockingEnable; // imgui docking
+			// io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+			// io.ConfigWindowsMoveFromTitleBarOnly = true;
 			ImGui::StyleColorsDark();
 			ImGui_ImplWin32_Init(renderInfo.window);
 			ImGui_ImplOpenGL3_Init(glsl_version);
@@ -144,48 +154,64 @@ int WinMain(
 
 			program_memory memory;
 			program_input input;
+			Init(&g_EventQueue, win32_debug_malloc(Megabytes(5)), Megabytes(5));
 			g_ProgramRunning = true;
 
 			while (g_ProgramRunning) {
+				//
+				// Write events to event queue
+				//
+				
+				Clear(&g_EventQueue); // подгатавливаем очередь к WindowProc
+
 				MSG message;
-				if (PeekMessageA(&message, renderInfo.window, 0, 0, PM_REMOVE)) {
-					switch (message.message) {}					TranslateMessage(&message);
-					DispatchMessageA(&message);
+				// NOTE: в hwnd нужен NULL, иначе обработка сообщений начинает работать неправильно
+				// (не работал ALT + SHIFT, когда окно было в фокусе)
+				while (PeekMessageW(&message, NULL, 0, 0, PM_REMOVE)) {
+					TranslateMessage(&message);
+					DispatchMessageW(&message);
 				}
-				else {
-					// g_editor.ProcessHotkey(window);
 
-					//
-					// Start Frame
-					//
+				//
+				// Start Frame
+				//
 
-					ImGui_ImplOpenGL3_NewFrame();
-					ImGui_ImplWin32_NewFrame();
-					ImGui::NewFrame();
+				ImGui_ImplOpenGL3_NewFrame();
+				ImGui_ImplWin32_NewFrame();
+				ImGui::NewFrame();
 
-					//
-					// Editor Code
-					//
+				//
+				// Editor Code
+				//
 
-					UpdateAndRender(&memory, &input);
+				EditorUpdateAndRender(&memory, &g_EventQueue, &input);
 
-					//
-					// End Frame
-					//
+				//
+				// End Frame
+				//
 
-					glClearColor(0.3f, 0.3f, 0.3f, 1.0f);
-					glClear(GL_COLOR_BUFFER_BIT);
-					ImGui::Render();
-					ImGuiIO& io = ImGui::GetIO();
-					glViewport(0, 0, (int)io.DisplaySize.x, (int)io.DisplaySize.y);
-					ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-					SwapBuffers(renderInfo.deviceContext);
-				}
+				ImGuiIO& io = ImGui::GetIO();
+				glViewport(0, 0, (int)io.DisplaySize.x, (int)io.DisplaySize.y);
+				glClearColor(0.3f, 0.3f, 0.3f, 1.0f);
+				glClear(GL_COLOR_BUFFER_BIT);
+
+				ImGui::Render();
+				ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+				
+				SwapBuffers(renderInfo.deviceContext);
 			}
 
+			//
+			// Shutdown Imgui
+			//
+			
+			ImGui_ImplOpenGL3_Shutdown();
+			ImGui_ImplWin32_Shutdown();
+			ImGui::DestroyContext();
 		}
-
 	}
+
+
 
 	return EXIT_SUCCESS;
 }
@@ -203,39 +229,48 @@ LRESULT CALLBACK WindowProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
 	if (ImGui_ImplWin32_WndProcHandler(window, msg, wParam, lParam))
 		return true;
 
-	LRESULT result = 0;
-
     switch (msg) {
-    case WM_DESTROY:
+    
+	case WM_DESTROY:
     case WM_CLOSE: 
         g_ProgramRunning = false;
-		return 0;
-    break;
+	return 0;
 
-    case WM_KEYDOWN: {
-		// g_editor.ProcessKeydown(wParam);
-		return 0;
-	} break;
+	case WM_INPUTLANGCHANGE:
+		platform_Print("Input language changed\n");
+	return 1;
+
+	case WM_SYSKEYDOWN:
+    case WM_KEYDOWN:
+	break;
+
+	case WM_SYSKEYUP:
+	case WM_KEYUP:
+	break;
 
 	case WM_CHAR: {
-		// g_editor.ProcessChar(wParam);
-		return 0;
-	} break;
+		wchar_t wideChar = wParam;
+		// char utf8Buffer[5] = {0};
+		u32 utf8CodePoint = 0;
+		u8* debugCodePoint = (u8*)&utf8CodePoint;
+		s32 bytesWritten = 
+			WideCharToMultiByte(CP_UTF8, 0, &wideChar, 1, (char*)&utf8CodePoint, sizeof(utf8CodePoint), NULL, NULL);
+		
+		// u16 repeatCount = lParam & 0xFFFF;
+		
+		char_event event = CharEvent(utf8CodePoint);
+		PUSH_EVENT(g_EventQueue, event);
+	} return 0;
 
-    case WM_SIZE: {
+    case WM_SIZE:
 		return 0;
-	}
 
     case WM_PAINT: {
 		PAINTSTRUCT paint;
 		BeginPaint(window, &paint);
 		EndPaint(window, &paint);
-		return 0;
-	} break;
-    default:
-        result = DefWindowProcW(window, msg, wParam, lParam);
-		break;
+	} return 0;
     }
 
-    return result;
+    return DefWindowProcW(window, msg, wParam, lParam);;
 }
