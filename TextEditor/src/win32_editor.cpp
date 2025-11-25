@@ -15,9 +15,9 @@
 #include <GL/wglext.h>
 #include <imgui/imgui_impl_win32.h>
 
-extern "C" int _fltused = 0x9875; // чтобы работал float
+// extern "C" int _fltused = 0x9875; // чтобы работал float
 
-void __security_check_cookie(uintptr_t cookie) { } // TODO: выяснить зачем это нужно
+// void __security_check_cookie(uintptr_t cookie) { } // TODO: выяснить зачем это нужно
 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 LRESULT CALLBACK WindowProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam);
@@ -252,9 +252,9 @@ int WinMain(
 // #else
 // s32 __stdcall WinMainCRTStartup() {
 // #endif
-int main() {
+void main() {
 	s32 result = WinMain(GetModuleHandle(0), 0, 0, 0);
-	return result;
+	ExitProcess(result);
 }
 
 //

@@ -1,0 +1,7 @@
+{
+    "C_Cpp.errorSquiggles": "disabled",
+    "files.exclude": {
+        "imguidll/src": true,
+        // "**/deps": true
+    },
+}
