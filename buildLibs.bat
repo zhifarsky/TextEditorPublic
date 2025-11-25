@@ -17,7 +17,7 @@ pushd "%cd%\imguidll"
 
 :: Release
 if not exist "%OutDirR%" mkdir "%OutDirR%"
-cl.exe /c /EHsc /MD /O2 /Fo"%OutDirR%\\" %FilesToBuild%
+cl.exe /c /MP /EHsc /MD /O2 /Fo"%OutDirR%\\" %FilesToBuild%
 link /DLL /OUT:"%OutDirR%\\%ProjectNameR%.dll" /IMPLIB:"%OutDirR%\\%ProjectNameR%.lib" "%OutDirR%\\*.obj"
 if errorlevel 1 goto error
 copy %OutDirR%\%ProjectNameR%.lib ..\TextEditor\deps\imgui\
@@ -25,7 +25,7 @@ copy %OutDirR%\%ProjectNameR%.dll ..\TextEditor\deps\imgui\
 
 :: Debug
 if not exist "%OutDirD%" mkdir "%OutDirD%"
-cl.exe /c /EHsc /MDd /Zo /Od /Oi /Fo"%OutDirD%\\" %FilesToBuild%
+cl.exe /c /MP /EHsc /MDd /Zo /Od /Oi /Fo"%OutDirD%\\" %FilesToBuild%
 link /DLL /OUT:"%OutDirD%\\%ProjectNameD%.dll" /IMPLIB:"%OutDirD%\\%ProjectNameD%.lib" "%OutDirD%\\*.obj"
 if errorlevel 1 goto error
 copy %OutDirD%\%ProjectNameD%.lib ..\TextEditor\deps\imgui\

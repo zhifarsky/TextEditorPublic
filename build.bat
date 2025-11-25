@@ -26,8 +26,13 @@ set ExeName=editor.exe
 :: Compiler flags
 ::
 
-set CommonFlags=/nologo /Gm- /GR- /GS- /Oi /Gs9999999 /EHa-
-set CommonLinkerFlags=/stack:0x100000,0x100000 /nodefaultlib kernel32.lib User32.lib Gdi32.lib opengl32.lib Comdlg32.lib
+:: /fixed нужно убрать для .DLL
+@REM set CommonFlags=/nologo /Gm- /GR- /GS- /Oi /Gs9999999 /EHa-
+@REM set CommonLinkerFlags=/incremental:no /fixed /opt:ref /opt:icf /stack:0x100000,0x100000 /nodefaultlib kernel32.lib User32.lib Gdi32.lib opengl32.lib Comdlg32.lib
+
+:: компилируем с libvcruntime.lib, так как imgui требует memcpy и тд. если убрать imgui, можно компилировать без него (и вернуться к /nodefaultlib?)
+set CommonFlags=/nologo /Gm- /GR- /GS- /Oi /EHa-
+set CommonLinkerFlags=/ENTRY:main /incremental:no /fixed /opt:ref /opt:icf kernel32.lib User32.lib Gdi32.lib opengl32.lib Comdlg32.lib libvcruntime.lib 
 
 if %ReleaseBuild% (
   echo Release build

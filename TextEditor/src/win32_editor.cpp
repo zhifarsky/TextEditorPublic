@@ -2,8 +2,8 @@
 #include "editor.h"
 #include "data_structures.h"
 
-// unity build
-#include "editor.cpp"
+// modules
+#include "editor.cpp" // NOTE: в идеале должен компилироваться отдельно, т.к. отдельный модуль
 
 // external headers
 #include <imgui/imgui.h>
@@ -247,13 +247,14 @@ int WinMain(
 // Debug компилируем с флагом /subsystem:console
 // Release с /subsystem:windows
 
-#if _DEBUG
-s32 mainCRTStartup() {
-#else
-s32 WinMainCRTStartup() {
-#endif
+// #if _DEBUG
+// s32 __stdcall mainCRTStartup() {
+// #else
+// s32 __stdcall WinMainCRTStartup() {
+// #endif
+int main() {
 	s32 result = WinMain(GetModuleHandle(0), 0, 0, 0);
-    ExitProcess(result);
+	return result;
 }
 
 //
