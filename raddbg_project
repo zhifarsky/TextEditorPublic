@@ -1,5 +1,6 @@
 // raddbg 0.9.24 project file
 
+recent_file: path: "TextEditor/src/editor.cpp"
 recent_file: path: "TextEditor/src/data_structures.cpp"
 recent_file: path: "TextEditor/src/win32_editor.cpp"
 recent_file: path: "TextEditor/src/main.cpp"
@@ -12,7 +13,7 @@ target:
 debug_info:
 {
   path: "D:/dev/cpp/TextEditorPublic_unity/TextEditor/build/debug/editor.pdb"
-  timestamp: 66199165969286
+  timestamp: 66199336929827
 }
 breakpoint:
 {

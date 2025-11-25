@@ -1,6 +1,12 @@
 #include <windows.h>
+#include <GL/gl.h>
+#include <GL/wglext.h>
+#include <imgui/imgui.h>
+#include <imgui/imgui_impl_win32.h>
+#include <imgui/imgui_impl_opengl3.h>
 
 #include "editor.h"
+#include "data_structures.h"
 
 #include "tools.cpp"
 #include "data_structures.cpp"
@@ -20,25 +26,44 @@ LRESULT CALLBACK WindowProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
 static bool g_ProgramRunning;
 static event_queue g_EventQueue;
 
-static HANDLE console;
+static HANDLE g_Console;
+static HDC g_DeviceContext;
+static HGLRC g_OglContext;
+static HWND g_Window;
 
-struct {
-	HDC deviceContext;
-	HGLRC oglContext;
-	HWND window;
-} renderInfo; // TODO: временно, убрать
-
-void* win32_debug_malloc(u64 size) {
+void* debug_malloc(u64 size) {
 	return VirtualAlloc(0, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 }
 
+//
+// Platform API
+//
+
 void platform_Print(const char* msg) {
-	if (!console)
-		console = GetStdHandle(STD_OUTPUT_HANDLE);
-    WriteConsoleA(console, msg, strlen(msg), NULL, 0);
+	if (!g_Console)
+		g_Console = GetStdHandle(STD_OUTPUT_HANDLE);
+    WriteConsoleA(g_Console, msg, strlen(msg), NULL, 0);
 }
 
-void win32_ErrorHandle(const char* msg = NULL) {
+void platform_StartFrame() {
+	ImGui_ImplOpenGL3_NewFrame();
+	ImGui_ImplWin32_NewFrame();
+	ImGui::NewFrame();
+}
+
+void platform_EndFrame() {
+	ImGuiIO& io = ImGui::GetIO();
+	glViewport(0, 0, (int)io.DisplaySize.x, (int)io.DisplaySize.y);
+	glClearColor(0.3f, 0.3f, 0.3f, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT);
+
+	ImGui::Render();
+	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+	
+	SwapBuffers(g_DeviceContext);
+}
+
+void ErrorHandle(const char* msg = NULL) {
 	DWORD errorCode = GetLastError();
 	platform_Print("\nERROR");
 	if (msg)
@@ -69,7 +94,7 @@ int WinMain(
 
 	// register class and create window
 	if (RegisterClassW(&wc)) {
-		renderInfo.window = CreateWindowExW(
+		g_Window = CreateWindowExW(
 			0,
 			wc.lpszClassName,
 			L"Text Editor",
@@ -84,12 +109,12 @@ int WinMain(
 			0
 		);
 
-		if (renderInfo.window) {
+		if (g_Window) {
 			//
 			// Init OpenGL
 			//
 			
-			renderInfo.deviceContext = GetDC(renderInfo.window);
+			g_DeviceContext = GetDC(g_Window);
 			PIXELFORMATDESCRIPTOR pfd = {
 					sizeof(PIXELFORMATDESCRIPTOR),
 					1,
@@ -105,19 +130,19 @@ int WinMain(
 					0,
 					0, 0, 0
 			};
-			int pixelFormat = ChoosePixelFormat(renderInfo.deviceContext, &pfd);
-			SetPixelFormat(renderInfo.deviceContext, pixelFormat, &pfd);
+			int pixelFormat = ChoosePixelFormat(g_DeviceContext, &pfd);
+			SetPixelFormat(g_DeviceContext, pixelFormat, &pfd);
 
-			HGLRC oglTempContext = wglCreateContext(renderInfo.deviceContext);
+			HGLRC oglTempContext = wglCreateContext(g_DeviceContext);
 			if (!oglTempContext)
-				win32_ErrorHandle("wglCreateContext()\n");
+				ErrorHandle("wglCreateContext()\n");
 			
-			wglMakeCurrent(renderInfo.deviceContext, oglTempContext);
+			wglMakeCurrent(g_DeviceContext, oglTempContext);
 			
 			PFNWGLCREATECONTEXTATTRIBSARBPROC func = 
 				(PFNWGLCREATECONTEXTATTRIBSARBPROC)wglGetProcAddress("wglCreateContextAttribsARB");
 			if (!func)
-				win32_ErrorHandle("wglGetProcAddress()");
+				ErrorHandle("wglGetProcAddress()");
 
 			// ogl v3.3
 			int oglAttributes[] = {
@@ -126,11 +151,11 @@ int WinMain(
 				WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB,
 				0
 			};
-			renderInfo.oglContext = func(renderInfo.deviceContext, 0, oglAttributes);
+			g_OglContext = func(g_DeviceContext, 0, oglAttributes);
 
 			wglMakeCurrent(NULL, NULL);
 			wglDeleteContext(oglTempContext);
-			wglMakeCurrent(renderInfo.deviceContext, renderInfo.oglContext);
+			wglMakeCurrent(g_DeviceContext, g_OglContext);
 
 			// 
 			// Init Imgui
@@ -145,17 +170,28 @@ int WinMain(
 			// io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 			// io.ConfigWindowsMoveFromTitleBarOnly = true;
 			ImGui::StyleColorsDark();
-			ImGui_ImplWin32_Init(renderInfo.window);
+			ImGui_ImplWin32_Init(g_Window);
 			ImGui_ImplOpenGL3_Init(glsl_version);
+
+			//
+			// Init state
+			//
+			
+			u64 permStorageCapaicty = Megabytes(5);
+			u64 eventQueueCapacity = Megabytes(5);
+			
+			program_memory memory = {0};
+			memory.permStorage.base = debug_malloc(permStorageCapaicty);
+			memory.permStorage.capacity = permStorageCapaicty;
+			
+			Init(&g_EventQueue, debug_malloc(eventQueueCapacity), eventQueueCapacity);
+			g_ProgramRunning = true;
+
+			program_input input = {0};
 
 			//
 			// Main loop
 			//
-
-			program_memory memory;
-			program_input input;
-			Init(&g_EventQueue, win32_debug_malloc(Megabytes(5)), Megabytes(5));
-			g_ProgramRunning = true;
 
 			while (g_ProgramRunning) {
 				//
@@ -172,33 +208,13 @@ int WinMain(
 					DispatchMessageW(&message);
 				}
 
-				//
-				// Start Frame
-				//
 
-				ImGui_ImplOpenGL3_NewFrame();
-				ImGui_ImplWin32_NewFrame();
-				ImGui::NewFrame();
 
 				//
 				// Editor Code
 				//
 
 				EditorUpdateAndRender(&memory, &g_EventQueue, &input);
-
-				//
-				// End Frame
-				//
-
-				ImGuiIO& io = ImGui::GetIO();
-				glViewport(0, 0, (int)io.DisplaySize.x, (int)io.DisplaySize.y);
-				glClearColor(0.3f, 0.3f, 0.3f, 1.0f);
-				glClear(GL_COLOR_BUFFER_BIT);
-
-				ImGui::Render();
-				ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-				
-				SwapBuffers(renderInfo.deviceContext);
 			}
 
 			//
@@ -208,6 +224,15 @@ int WinMain(
 			ImGui_ImplOpenGL3_Shutdown();
 			ImGui_ImplWin32_Shutdown();
 			ImGui::DestroyContext();
+
+			//
+			// Cleanup
+			//
+
+			// wglMakeCurrent(NULL, NULL);
+			// wglDeleteContext(g_OglContext);
+			// ReleaseDC(g_Window, g_DeviceContext);
+			// DestroyWindow(g_Window);
 		}
 	}
 
@@ -216,10 +241,21 @@ int WinMain(
 	return EXIT_SUCCESS;
 }
 
+// Debug компилируем с флагом /subsystem:console
+// Release с /subsystem:windows
+
+#if _DEBUG
 s32 mainCRTStartup() {
+#else
+s32 WinMainCRTStartup() {
+#endif
 	s32 result = WinMain(GetModuleHandle(0), 0, 0, 0);
     ExitProcess(result);
 }
+	s32 result = WinMain(GetModuleHandle(0), 0, 0, 0);
+    ExitProcess(result);
+}
+
 
 //
 // Window callback
