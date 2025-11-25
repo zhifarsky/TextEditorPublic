@@ -35,6 +35,14 @@ void* debug_malloc(u64 size) {
 	return VirtualAlloc(0, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 }
 
+void ErrorHandle(const char* msg = NULL) {
+	DWORD errorCode = GetLastError();
+	platform_Print("\nERROR");
+	if (msg)
+		platform_Print(msg);
+	ExitProcess(EXIT_FAILURE);
+}
+
 //
 // Platform API
 //
@@ -61,14 +69,6 @@ void platform_EndFrame() {
 	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 	
 	SwapBuffers(g_DeviceContext);
-}
-
-void ErrorHandle(const char* msg = NULL) {
-	DWORD errorCode = GetLastError();
-	platform_Print("\nERROR");
-	if (msg)
-		platform_Print(msg);
-	ExitProcess(EXIT_FAILURE);
 }
 
 //
@@ -252,10 +252,6 @@ s32 WinMainCRTStartup() {
 	s32 result = WinMain(GetModuleHandle(0), 0, 0, 0);
     ExitProcess(result);
 }
-	s32 result = WinMain(GetModuleHandle(0), 0, 0, 0);
-    ExitProcess(result);
-}
-
 
 //
 // Window callback

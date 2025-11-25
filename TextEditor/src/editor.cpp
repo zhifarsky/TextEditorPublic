@@ -21,6 +21,10 @@ struct editor_state {
 void EditorUpdateAndRender(program_memory* memory, event_queue* eventQueue, program_input* input) {
     editor_state* editorState = (editor_state*)memory->permStorage.base;
     
+    //
+    // Init State
+    //
+    
     if (!memory->isInitialized) {
         permanent_storage* permStorage = &memory->permStorage;
         Init(&permStorage->arena,
