@@ -1,8 +1,8 @@
 #pragma once
 #include <stdint.h>
 
-#define Kilabytes(n) (n * 1024LL)
-#define Megabytes(n) (Kilabytes(n) * 1024LL)
+#define Kilobytes(n) (n * 1024LL)
+#define Megabytes(n) (Kilobytes(n) * 1024LL)
 #define Gigabytes(n) (Megabytes(n) * 1024LL)
 
 typedef int8_t s8;
@@ -31,8 +31,6 @@ void platform_EndFrame();
 //
 // Editor services
 //
-
-struct event_queue;
 
 struct permanent_storage {
   void *base;

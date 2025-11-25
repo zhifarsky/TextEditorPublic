@@ -1,16 +1,19 @@
-#include <windows.h>
-#include <GL/gl.h>
-#include <GL/wglext.h>
-#include <imgui/imgui.h>
-#include <imgui/imgui_impl_win32.h>
-#include <imgui/imgui_impl_opengl3.h>
-
+// internal headers
 #include "editor.h"
 #include "data_structures.h"
 
-#include "tools.cpp"
-#include "data_structures.cpp"
+// unity build
 #include "editor.cpp"
+
+// external headers
+#include <imgui/imgui.h>
+#include <imgui/imgui_impl_opengl3.h>
+
+// win32
+#include <windows.h>
+#include <GL/gl.h>
+#include <GL/wglext.h>
+#include <imgui/imgui_impl_win32.h>
 
 extern "C" int _fltused = 0x9875; // чтобы работал float
 

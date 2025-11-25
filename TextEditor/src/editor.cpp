@@ -1,4 +1,3 @@
-#include <GL/gl.h>
 #include <imgui/imgui.h>
 #include <imgui/imgui_impl_opengl3.h>
 
@@ -7,13 +6,21 @@
 #include "tools.h"
 
 #define DEFAULT_FONT_SIZE 20
+#define MAX_TABS_COUNT 128
 
 ImFont* g_fontRegular;
 const char* g_fontRegularPath = ".\\res\\fonts\\Roboto-Regular.ttf";
 
 bool g_rerenderFonts;
 
+struct text_tab {
+    
+};
+
 struct editor_state {
+    text_tab tabs[MAX_TABS_COUNT];
+    u32 tabsCount;
+    
     u32 fontSize;
     s32 currentTextTab;
 };
@@ -38,6 +45,7 @@ void EditorUpdateAndRender(program_memory* memory, event_queue* eventQueue, prog
         //  Init Editor
         //
         
+        ZeroStruct(*editorState);
         editorState->currentTextTab = -1;
         
         //
