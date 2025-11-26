@@ -38,6 +38,10 @@ static HWND g_Window;
 void* debug_malloc(u64 size) {
 	return VirtualAlloc(0, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 }
+void debug_free(void* mem) {
+	if (mem)
+		VirtualFree(mem, 0, MEM_RELEASE);
+}
 
 void ErrorHandle(const char* msg = NULL) {
 	DWORD errorCode = GetLastError();
@@ -98,6 +102,17 @@ void platform_EndFrame() {
 	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 	
 	SwapBuffers(g_DeviceContext);
+}
+
+void* platform_debug_Malloc(u64 size) {
+	return debug_malloc(size);
+}
+
+void* platform_debug_Realloc(void* oldMem, u64 oldSize, u64 newSize) {
+	void* newMem = debug_malloc(newSize);
+	CopyMem(newMem, oldMem, oldSize);
+	debug_free(oldMem);
+	return newMem;
 }
 
 //
@@ -196,8 +211,6 @@ int WinMain(
 			// ImGui::SetCurrentContext(imguiContext);
 			ImGuiIO& io = ImGui::GetIO();
 			io.ConfigFlags |= ImGuiConfigFlags_DockingEnable; // imgui docking
-			// io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
-			// io.ConfigWindowsMoveFromTitleBarOnly = true;
 			ImGui::StyleColorsDark();
 			ImGui_ImplWin32_Init(g_Window);
 			ImGui_ImplOpenGL3_Init(glsl_version);
@@ -320,7 +333,7 @@ LRESULT CALLBACK WindowProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
 	{
 		wchar_t wideChar = wParam;
 		// char utf8Buffer[5] = {0};
-		u32 utf8CodePoint = 0;
+		code_point utf8CodePoint = {0};
 		u8* debugCodePoint = (u8*)&utf8CodePoint;
 		s32 bytesWritten = 
 			WideCharToMultiByte(CP_UTF8, 0, &wideChar, 1, (char*)&utf8CodePoint, sizeof(utf8CodePoint), NULL, NULL);

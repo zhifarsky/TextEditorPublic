@@ -1,5 +1,38 @@
 #pragma once
 
+void platform_Print(const char* msg);
+
+// UTF-8 code point
+struct code_point {
+    union {
+        u32 v;
+        u8 bytes[4];
+    };
+};
+
+s32 GetLength(code_point p) {
+    // ascii
+    if ((p.bytes[0] & 0b10000000) == 0)
+        return 1;
+    
+    // leading code byte
+    if (p.bytes[1] & 0b11000000) {
+        s32 res = 1;
+        // continuation bytes
+        for (s32 i = 1; i < 4; i++) {
+            if ((p.bytes[i] & 0b11000000) == 0b10000000)
+                res++;
+            else
+                break;
+        }
+        
+        return res;
+    }
+
+    platform_Print("Invalid code point\n");
+    return 0;
+}
+
 enum te_Key {
     Key_None = 0,
     

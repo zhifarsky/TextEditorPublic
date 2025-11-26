@@ -19,11 +19,11 @@ enum event_type : u8 {
 
 struct char_event {
     EVENT_HEADER
-    u32 utf8CodePoint;
+    code_point utf8CodePoint;
     bool wasDown, isDown;
 };
 
-char_event CharEvent(u32 utf8CodePoint, bool wasDown, bool isDown) {
+char_event CharEvent(code_point utf8CodePoint, bool wasDown, bool isDown) {
     char_event event;
     event.eventType = Event_Char;
     event.utf8CodePoint = utf8CodePoint;
@@ -74,7 +74,7 @@ void Clear(event_queue *queue) {
 // Arena
 //
 
-// TODO: посмотреть про temp arena, scratch arena
+// TODO: посмотреть про temp arena, scratch arena, fee list
 
 struct memory_arena {
     u8* base;
@@ -185,30 +185,31 @@ void ToCString(char* buffer, u64 bufferSize, string* str) {
     buffer[str->size] = 0;
 }
 
-// void IntToString(char *buffer, s32 value) {
-//     s32 n = 0, v = Abs(value);
-//     while(v > 0) {
-//         v /= 10;
-//         n++;
-//     }
-    
-//     n = te_Max(1, n);
-//     s32 divider = Pow(10, n - 1);
+//
+// Dynamic Array
+//
 
-//     char* p = buffer;
-//     if (value < 0) {
-//         *p = '-';
-//         p++;
-//     }
+#define ARRAY_DEFAULT_MAX_COUNT 512
+
+template <typename T>
+struct array_dynamic {
+    T* items;
+    u64 count, maxCount;    
+};
+
+template <typename T>
+array_dynamic<T> Array(u64 maxCount = ARRAY_DEFAULT_MAX_COUNT) {
+    array_dynamic<T> array = {0};
+    array.items = (T*)platform_debug_Malloc(maxCount * sizeof(T));
+    array.maxCount = maxCount;
+    return array;
+}
+
+template <typename T>
+void Push(array_dynamic<T>* array, const T& item) {
+    if (array->count + 1 > array->maxCount) {
+        array->items = (T*)platform_debug_Realloc(array->items, array->count * sizeof(T), (array->maxCount + 1) * 2);
+    }
     
-//     v = Abs(value);
-        
-//     for (s32 i = 0; i < n; i++)
-//     {
-//         *p = '0' + (v / divider % 10);
-//         divider /= 10;
-//         p++;
-//     }
-    
-//     *p = 0;
-// }
+    array->items[array->count++] = item;
+}

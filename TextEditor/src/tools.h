@@ -43,6 +43,9 @@ u32 StrLen(const char* str) {
     while (*p != '\0') { p++; }
     return p - str;
 }
+u32 StrLen(const unsigned char* str) {
+    return StrLen((const char*)str);
+}
 
 #define te_Min(a, b) (a < b ? a : b)
 #define te_Max(a, b) (a > b ? a : b)

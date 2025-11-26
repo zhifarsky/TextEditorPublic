@@ -28,6 +28,9 @@ void platform_Print(const char* message);
 void platform_StartFrame();
 void platform_EndFrame();
 
+void* platform_debug_Malloc(u64 size);
+void* platform_debug_Realloc(void* oldMem, u64 oldSize, u64 newSize);
+
 //
 // Editor services
 //

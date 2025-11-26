@@ -7,15 +7,32 @@
 #include "data_structures.h"
 #include "widgets.h"
 
+#define MIN_FONT_SIZE 14
+#define MAX_FONT_SIZE 40
 #define DEFAULT_FONT_SIZE 20
+
 #define MAX_TABS_COUNT 128
 
-ImFont* g_fontRegular;
-const char* g_fontRegularPath = ".\\res\\fonts\\Roboto-Regular.ttf";
+// так можно узнать появились ли новые глифы
+bool GlyphRangesAreDifferent(ImFontGlyphRangesBuilder* oldRanges, ImFontGlyphRangesBuilder* newRanges) {
+    if (oldRanges->UsedChars.size() != newRanges->UsedChars.size())
+        return true;
+    
+    for (int i = 0; i < oldRanges->UsedChars.size(); i++)
+    {
+        if (oldRanges->UsedChars.Data[i] != newRanges->UsedChars.Data[i])
+            return true;
+    }
+    
+    return false;
+}
 
-bool g_rerenderFonts;
+ImFont* g_fontRegular;
+// const char* g_fontRegularPath = ".\\res\\fonts\\Roboto-Regular.ttf";
+const char* g_fontRegularPath = "C:/Windows/Fonts/msyh.ttc";
 
 u32 g_lastDockNodeId;
+bool isSettingsOpen;
 
 enum encoding_type {
     Encoding_None = 0,
@@ -26,10 +43,23 @@ struct text_tab {
     s64 cursorIndex;
     u32 id;
     encoding_type encoding;
+    
+    array_dynamic<char> added;
 };
 
-void TextInsertChar(text_tab* textTab, u32 utf8CodePoint, s64 pos) {
-    
+void TextInsertChar(text_tab* textTab, code_point utf8CodePoint, s64 pos) {
+    s32 length = GetLength(utf8CodePoint);
+    for (s32 i = 0; i < length; i++)
+    {
+        Push<char>(&textTab->added, utf8CodePoint.bytes[i]);
+    }
+}
+
+void TextInsertTest(text_tab* textTab) {
+    code_point c = {0};
+    const unsigned char s1[] = "汉";
+    CopyMem((void*)c.bytes, (void*)s1, StrLen(s1));
+    TextInsertChar(textTab, c, 0);
 }
 
 struct editor_state {
@@ -54,6 +84,8 @@ void AddTextTab(editor_state* editor) {
     newTab->encoding = Encoding_UTF8;
     newTab->id = editor->tabIDCounter++; 
     
+    newTab->added = Array<char>();
+    
     editor->currentTextTab = editor->tabsCount;
     editor->tabsCount++;
 }
@@ -77,7 +109,7 @@ void EditorUpdateAndRender(program_memory* memory, event_queue* eventQueue, prog
         ); 
         
         memory->isInitialized = true;
-        
+                
         //
         //  Init Editor
         //
@@ -88,32 +120,9 @@ void EditorUpdateAndRender(program_memory* memory, event_queue* eventQueue, prog
         //
         // Init Fonts
         //
-        
-        ImGuiIO& io = ImGui::GetIO();
-        editorState->fontSize = DEFAULT_FONT_SIZE;
-        g_fontRegular = io.Fonts->AddFontFromFileTTF(
-            g_fontRegularPath, editorState->fontSize, NULL, io.Fonts->GetGlyphRangesCyrillic());
-        
-        g_rerenderFonts = false;
-        
-        memory->isInitialized = true;
-    }
-    
-    //
-    // Rerender fonts if needed 
-    //
-    
-    if (g_rerenderFonts) {
-        ImGuiIO &io = ImGui::GetIO();
-        
-        ImGui_ImplOpenGL3_DestroyFontsTexture();
-        io.Fonts->Clear();
 
-        g_fontRegular = io.Fonts->AddFontFromFileTTF(
-        g_fontRegularPath, editorState->fontSize, NULL, io.Fonts->GetGlyphRangesCyrillic());
-
-        io.Fonts->Build();
-        ImGui_ImplOpenGL3_CreateFontsTexture();
+        editorState->fontSize = DEFAULT_FONT_SIZE; // TODO: больше не нужен?
+        g_fontRegular = ImGui::GetIO().Fonts->AddFontFromFileTTF(g_fontRegularPath);
     }
     
     //
@@ -161,10 +170,13 @@ void EditorUpdateAndRender(program_memory* memory, event_queue* eventQueue, prog
     //
 
     platform_StartFrame();
-
+    
+    ImGui::PushFont(g_fontRegular, editorState->fontSize);
+    
     ImGuiViewport* viewport = ImGui::GetMainViewport();
     ImGuiStyle& style = ImGui::GetStyle();
-
+    ImGuiIO& io = ImGui::GetIO();
+    
     //
     // Toolbar
     //
@@ -187,7 +199,7 @@ void EditorUpdateAndRender(program_memory* memory, event_queue* eventQueue, prog
 
         if (ImGui::Begin("Toolbar", nullptr, toolbarFlags))
         {
-            if (ImGui::Button("Settings")) { /*isSettingsOpen = true;*/ }
+            if (ImGui::Button("Settings")) { isSettingsOpen = true; }
             ImGui::SameLine();
             
             if (ImGui::Button("New")) { AddTextTab(editorState); }
@@ -213,6 +225,10 @@ void EditorUpdateAndRender(program_memory* memory, event_queue* eventQueue, prog
         ImGui::End();
     }
     
+    //
+    // Dock panel
+    //
+    
     {
         ImGui::SetNextWindowPos(ImVec2(viewport->WorkPos.x, viewport->WorkPos.y + toolbarHeight));
         ImGui::SetNextWindowSize(ImVec2(viewport->WorkSize.x, viewport->WorkSize.y - toolbarHeight));
@@ -236,67 +252,73 @@ void EditorUpdateAndRender(program_memory* memory, event_queue* eventQueue, prog
             g_lastDockNodeId = dockspace_id;
 
         ImGui::End();
-    } 
-
-    if (ImGui::Begin("Test window")) {
-        ImGui::Text("Tabs count: %d", editorState->tabsCount);
-        ImGui::Text("Current tab: %d", editorState->currentTextTab);
-        if (ImGui::Button("Add text tab")) {
-            AddTextTab(editorState);
-        }
-        
-        // draw text tabs
-        for (size_t i = 0; i < editorState->tabsCount; i++)
-        {
-            text_tab* tab = &editorState->tabs[i];
-            
-            // create label
-            char label[256] = "New tab##";
-            char id[256];
-            string labelStr = String(label, sizeof(label), StrLen(label));
-            string idStr = String(id, sizeof(id));
-            IntToString(&idStr, tab->id);
-            Concat(&labelStr, &idStr);
-            labelStr.base[labelStr.size] = 0;
-            
-            if (ImGui::Begin(labelStr.base, NULL, ImGuiWindowFlags_NoSavedSettings))
-            {
-                if (ImGui::IsWindowFocused()) {
-                    editorState->currentTextTab = tab->id;
-                }
-                // записываем id, по которому можно будет присоеденить окно
-                if (ImGui::IsWindowDocked()) {
-                    if (ImGui::IsWindowFocused()) {
-                        g_lastDockNodeId = ImGui::GetWindowDockID();
-                    }
-                }
-                // проверяем есть ли окно, к которому можно присоединить новое
-                else if (g_lastDockNodeId != 0) {
-                    // проверяем перетаскивается ли окно. если нет - автоматически присоединяем к существующему окну
-                    if (!(ImGui::IsWindowHovered() && ImGui::IsMouseDragging(ImGuiMouseButton_Left))) {
-                        ImGui::DockBuilderDockWindow(labelStr.base, g_lastDockNodeId);
-                    }
-                }
-                
-                string filenameStub = String("filename_stub.txt");
-                ImGui::Text(filenameStub);
-                
-                string textBufferStub = String("Text Stub");
-                
-                if (ImGui::BeginChild("TextChild", ImVec2(0, 0), 1)) {
-                    ImGui::Text(textBufferStub);
-                    
-                    // drawCursor(text.cursorIndex2, buffer.mem, IM_COL32(255, 255, 255, 180));
-                    ImGui::DrawCursor(tab->cursorIndex, textBufferStub);
-                } 
-                ImGui::EndChild();
-            }    
-                        
-            ImGui::End();
-        }
-        
     }
-    ImGui::End();
+    
+    // 
+    // Text tabs
+    // 
+    
+    for (size_t i = 0; i < editorState->tabsCount; i++) {
+        text_tab* tab = &editorState->tabs[i];
+        
+        // create label
+        char label[256] = "New tab##";
+        char id[256];
+        string labelStr = String(label, sizeof(label), StrLen(label));
+        string idStr = String(id, sizeof(id));
+        IntToString(&idStr, tab->id);
+        Concat(&labelStr, &idStr);
+        labelStr.base[labelStr.size] = 0;
+        
+        if (ImGui::Begin(labelStr.base, NULL, ImGuiWindowFlags_NoSavedSettings))
+        {
+            if (ImGui::IsWindowFocused()) {
+                editorState->currentTextTab = tab->id;
+            }
+            // записываем id, по которому можно будет присоеденить окно
+            if (ImGui::IsWindowDocked()) {
+                if (ImGui::IsWindowFocused()) {
+                    g_lastDockNodeId = ImGui::GetWindowDockID();
+                }
+            }
+            // проверяем есть ли окно, к которому можно присоединить новое
+            else if (g_lastDockNodeId != 0) {
+                // проверяем перетаскивается ли окно. если нет - автоматически присоединяем к существующему окну
+                if (!(ImGui::IsWindowHovered() && ImGui::IsMouseDragging(ImGuiMouseButton_Left))) {
+                    ImGui::DockBuilderDockWindow(labelStr.base, g_lastDockNodeId);
+                }
+            }
+            
+            string filenameStub = String("filename_stub.txt");
+            ImGui::Text(filenameStub);
+            
+            if (ImGui::Button("ut8 test")) {
+                TextInsertTest(tab);
+            }
+            
+            // string textBufferStub = String("Text Stub");
+            string textBuffer = String(tab->added.items, tab->added.maxCount, tab->added.count);
+            // g_rangesBuilder.AddText(StrFirst(textBuffer), StrLast(textBuffer) + 1); // TEST
+            
+            if (ImGui::BeginChild("TextChild", ImVec2(0, 0), 1)) {
+                ImGui::Text(textBuffer);
+                
+                // drawCursor(text.cursorIndex2, buffer.mem, IM_COL32(255, 255, 255, 180));
+                ImGui::DrawCursor(tab->cursorIndex, textBuffer);
+            } ImGui::EndChild();
+        } ImGui::End();
+    }
+    
+    //
+    // Settings
+    //
+    if (isSettingsOpen) {
+        if (ImGui::Begin("Settings", &isSettingsOpen)) {
+            ImGui::SliderInt("Font size", (int*)&editorState->fontSize, MIN_FONT_SIZE, MAX_FONT_SIZE);
+        } ImGui::End();
+    }
+    
+    ImGui::PopFont();
     
     platform_EndFrame();
 }
