@@ -1,6 +1,7 @@
 // internal headers
 #include "editor.h"
 #include "data_structures.h"
+#include "input.h"
 
 // modules
 #include "editor.cpp" // NOTE: в идеале должен компилироваться отдельно, т.к. отдельный модуль
@@ -44,6 +45,31 @@ void ErrorHandle(const char* msg = NULL) {
 	if (msg)
 		platform_Print(msg);
 	ExitProcess(EXIT_FAILURE);
+}
+
+// map windows virtual key to internal repr
+te_Key MapKey(u32 virtualKey) {
+	if (virtualKey >= '0' && virtualKey <= '9')
+		return (te_Key)virtualKey;
+	if (virtualKey >= 'A' && virtualKey <= 'Z')
+		return (te_Key)virtualKey;
+	
+	switch (virtualKey)
+	{
+	case VK_LEFT:	return Key_ArrowLeft;
+	case VK_RIGHT:	return Key_ArrowRight;
+	case VK_UP:		return Key_ArrowUp;
+	case VK_DOWN:	return Key_ArrowDown;
+	
+	case VK_LSHIFT: 	return Key_ShiftLeft;
+	case VK_RSHIFT: 	return Key_ShiftRight;
+	case VK_LCONTROL: 	return Key_CtrlLeft;
+	case VK_RCONTROL: 	return Key_CtrlRight;
+	case VK_LMENU: 		return Key_AltLeft;
+	case VK_RMENU: 		return Key_AltRight;
+	}
+	
+	return Key_None;
 }
 
 //
@@ -261,6 +287,8 @@ void main() {
 // Window callback
 //
 
+#define WAS_DOWN(lParam) ((lParam >> 30) & 1)
+
 LRESULT CALLBACK WindowProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam) {
 	if (ImGui_ImplWin32_WndProcHandler(window, msg, wParam, lParam))
 		return true;
@@ -278,23 +306,30 @@ LRESULT CALLBACK WindowProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
 
 	case WM_SYSKEYDOWN:
     case WM_KEYDOWN:
-	break;
+	{
+		bool wasDown = WAS_DOWN(lParam);
+		key_event event = KeyEvent(MapKey(wParam), wasDown, true);
+		PUSH_EVENT(g_EventQueue, event);
+	} break;
 
 	case WM_SYSKEYUP:
 	case WM_KEYUP:
 	break;
 
-	case WM_CHAR: {
+	case WM_CHAR: 
+	{
 		wchar_t wideChar = wParam;
 		// char utf8Buffer[5] = {0};
 		u32 utf8CodePoint = 0;
 		u8* debugCodePoint = (u8*)&utf8CodePoint;
 		s32 bytesWritten = 
 			WideCharToMultiByte(CP_UTF8, 0, &wideChar, 1, (char*)&utf8CodePoint, sizeof(utf8CodePoint), NULL, NULL);
-		
+
+		bool wasDown = WAS_DOWN(lParam);
+
 		// u16 repeatCount = lParam & 0xFFFF;
 		
-		char_event event = CharEvent(utf8CodePoint);
+		char_event event = CharEvent(utf8CodePoint, wasDown, true);
 		PUSH_EVENT(g_EventQueue, event);
 	} return 0;
 

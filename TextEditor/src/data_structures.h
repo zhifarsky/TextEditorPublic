@@ -1,6 +1,9 @@
 #pragma once
 #include "editor.h"
 #include "tools.h"
+#include "input.h"
+
+void platform_Print(const char* msg);
 
 //
 // Event Queue
@@ -9,7 +12,7 @@
 enum event_type : u8 {
     Event_None = 0,
     Event_Char,
-    Event_KeyDown
+    Event_Key
 };
 
 #define EVENT_HEADER event_type eventType;
@@ -17,20 +20,32 @@ enum event_type : u8 {
 struct char_event {
     EVENT_HEADER
     u32 utf8CodePoint;
+    bool wasDown, isDown;
 };
 
-char_event CharEvent(u32 utf8CodePoint) {
+char_event CharEvent(u32 utf8CodePoint, bool wasDown, bool isDown) {
     char_event event;
     event.eventType = Event_Char;
     event.utf8CodePoint = utf8CodePoint;
+    event.wasDown = wasDown;
+    event.isDown = isDown;
     return event;
 }
 
 struct key_event {
     EVENT_HEADER
-    u32 key; // TODO: enum, чтобы не зависеть от платформы?
+    te_Key key;
     bool wasDown, isDown;
 };
+
+key_event KeyEvent(te_Key key, bool wasDown, bool isDown) {
+    key_event event;
+    event.key = key;
+    event.eventType = Event_Key;
+    event.isDown = isDown;
+    event.wasDown = wasDown;
+    return event;
+}
 
 struct event_queue {
     void *base;
@@ -92,7 +107,25 @@ void Clear(memory_arena* arena) {
 struct string {
     char* base;
     u64 size, capacity;
+
+    char& operator[](u64 i) {
+        if (i >= size) {
+            platform_Print("string out of bounds\n");
+            return base[0];
+        }
+        return base[i];
+    } 
 };
+
+#define StrFirst(str) (str.base)
+#define StrLast(str) (str.base + str.size - 1)
+
+string String(const char* str) {
+    string res;
+    res.base = (char*)str;
+    res.size = res.capacity = StrLen(str);
+    return res;
+}
 
 string String(char* base, u64 capacity, u64 size = 0) {
     string str;

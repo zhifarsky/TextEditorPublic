@@ -11,7 +11,7 @@
 			"problemMatcher": [],
 			"group": {
 				"kind": "build",
-				"isDefault": false
+				"isDefault": true
 			},
 			"detail": "Компиляция при помощи build.bat"
 		},
@@ -25,7 +25,8 @@
                 "panel": "new", // Open a new terminal specifically for the program
                 "close": false // Keep the terminal open after the program exits
             },
-            "problemMatcher": []
+            "problemMatcher": [],
+			"detail": "Запустить отладку"
         },
 		{
             "label": "Build and Debug",
@@ -36,13 +37,14 @@
             "dependsOrder": "sequence", // Ensure tasks run one after the other
             "group": {
                 "kind": "build",
-                "isDefault": true
+                "isDefault": false
             },
             "presentation": {
                 "reveal": "always",
                 "panel": "shared",
                 "close": true
-            }
+            },
+			"detail": "Скомпилировать и запустить отладку"
         }
 	]
 }

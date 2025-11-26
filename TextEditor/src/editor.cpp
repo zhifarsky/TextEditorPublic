@@ -5,6 +5,7 @@
 #include "tools.h"
 #include "editor.h"
 #include "data_structures.h"
+#include "widgets.h"
 
 #define DEFAULT_FONT_SIZE 20
 #define MAX_TABS_COUNT 128
@@ -39,6 +40,12 @@ struct editor_state {
     u32 fontSize;
     s32 currentTextTab;
 };
+
+text_tab* GetCurrentTab(editor_state* editor) {
+    if (editor->currentTextTab < 0 || editor->currentTextTab >= editor->tabsCount)
+        return NULL;
+    return &editor->tabs[editor->currentTextTab];
+}
 
 void AddTextTab(editor_state* editor) {
     text_tab* newTab = &editor->tabs[editor->tabsCount];
@@ -113,10 +120,9 @@ void EditorUpdateAndRender(program_memory* memory, event_queue* eventQueue, prog
     // Process Event Queue
     //
 
-    if (editorState->currentTextTab >= 0)
-    {
-        text_tab* textTab = &editorState->tabs[editorState->currentTextTab];
-        
+    text_tab* textTab = GetCurrentTab(editorState);
+    
+    if (textTab) {
         u8* i = (u8*)eventQueue->base;
         
         while (i < (u8*)eventQueue->base + eventQueue->size) {
@@ -125,17 +131,22 @@ void EditorUpdateAndRender(program_memory* memory, event_queue* eventQueue, prog
             switch (eventType)
             {
                 case Event_Char: {
-                    char_event event = *(char_event*)i;
+                    char_event* event = (char_event*)i;
                     platform_Print("Processing char event\n");
-                    TextInsertChar(textTab, event.utf8CodePoint, textTab->cursorIndex);
+                    TextInsertChar(textTab, event->utf8CodePoint, textTab->cursorIndex);
                     // ...
-                    i += sizeof(event);
+                    i += sizeof(*event);
                 } break;
 
-                case Event_KeyDown: {
-                    key_event event = *(key_event*)i;
-                    // ...
-                    i += sizeof(event);
+                case Event_Key: {
+                    key_event* event = (key_event*)i;
+                    if (event->key == Key_ArrowRight) {
+                        textTab->cursorIndex++;
+                    }
+                    else if (event->key == Key_ArrowLeft) {
+                        textTab->cursorIndex--;
+                    }
+                    i += sizeof(*event);
                 } break;
 
                 default:
@@ -266,6 +277,19 @@ void EditorUpdateAndRender(program_memory* memory, event_queue* eventQueue, prog
                         ImGui::DockBuilderDockWindow(labelStr.base, g_lastDockNodeId);
                     }
                 }
+                
+                string filenameStub = String("filename_stub.txt");
+                ImGui::Text(filenameStub);
+                
+                string textBufferStub = String("Text Stub");
+                
+                if (ImGui::BeginChild("TextChild", ImVec2(0, 0), 1)) {
+                    ImGui::Text(textBufferStub);
+                    
+                    // drawCursor(text.cursorIndex2, buffer.mem, IM_COL32(255, 255, 255, 180));
+                    ImGui::DrawCursor(tab->cursorIndex, textBufferStub);
+                } 
+                ImGui::EndChild();
             }    
                         
             ImGui::End();

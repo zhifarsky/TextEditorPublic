@@ -32,6 +32,8 @@ void platform_EndFrame();
 // Editor services
 //
 
+
+
 struct permanent_storage {
   void *base;
   u64 capacity;
