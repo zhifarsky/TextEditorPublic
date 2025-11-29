@@ -30,27 +30,35 @@ void platform_EndFrame();
 
 void* platform_debug_Malloc(u64 size);
 void* platform_debug_Realloc(void* oldMem, u64 oldSize, u64 newSize);
+void platform_debug_Free(void* memory);
 
 //
 // Editor services
 //
 
-
-
 struct permanent_storage {
-  void *base;
-  u64 capacity;
-  
-  memory_arena arena;  
+	void *base;
+	u64 capacity;
+	
+	memory_arena arena; 
+};
+
+struct transient_storage {
+	void* base;
+	u64 capacity;
+	
+	memory_arena frameArena; // очищается в начале каждого кадра
 };
 
 struct program_memory {
-    permanent_storage permStorage;
-    bool isInitialized;
+		permanent_storage permStorage;
+		transient_storage tranStorage;
+		
+		bool isInitialized;
 };
 
 struct program_input {
-    void * stub;
+		void * stub;
 };
 
 void EditorUpdateAndRender(program_memory* memory, event_queue* eventQueue, program_input* input);

@@ -4,70 +4,76 @@
 #include "input.h"
 
 void platform_Print(const char* msg);
+void* platform_debug_Malloc(u64 size);
+void platform_debug_Free(void* memory);
+
+#define GROWTH_FACTOR 2
 
 //
 // Event Queue
 //
 
 enum event_type : u8 {
-    Event_None = 0,
-    Event_Char,
-    Event_Key
+	Event_None = 0,
+	Event_Char,
+	Event_Key
 };
 
 #define EVENT_HEADER event_type eventType;
 
 struct char_event {
-    EVENT_HEADER
-    code_point utf8CodePoint;
-    bool wasDown, isDown;
+	EVENT_HEADER
+	code_point utf8CodePoint;
+	bool wasDown, isDown;
 };
 
 char_event CharEvent(code_point utf8CodePoint, bool wasDown, bool isDown) {
-    char_event event;
-    event.eventType = Event_Char;
-    event.utf8CodePoint = utf8CodePoint;
-    event.wasDown = wasDown;
-    event.isDown = isDown;
-    return event;
+	char_event event;
+	event.eventType = Event_Char;
+	event.utf8CodePoint = utf8CodePoint;
+	event.wasDown = wasDown;
+	event.isDown = isDown;
+	return event;
 }
 
 struct key_event {
-    EVENT_HEADER
-    te_Key key;
-    bool wasDown, isDown;
+	EVENT_HEADER
+	te_Key key;
+	bool wasDown, isDown;
 };
 
 key_event KeyEvent(te_Key key, bool wasDown, bool isDown) {
-    key_event event;
-    event.key = key;
-    event.eventType = Event_Key;
-    event.isDown = isDown;
-    event.wasDown = wasDown;
-    return event;
+	key_event event;
+	event.key = key;
+	event.eventType = Event_Key;
+	event.isDown = isDown;
+	event.wasDown = wasDown;
+	return event;
 }
 
 struct event_queue {
-    void *base;
-    u64 size, capacity;
+	void *base;
+	u64 size, capacity;
 };
 
-void Init(event_queue *queue, void* base, u64 capacity) {
-    queue->base = base;
-    queue->size = 0;
-    queue->capacity = capacity;
+event_queue EventQueue(void* base, u64 capacity) {
+	event_queue queue;
+	queue.base = base;
+	queue.size = 0;
+	queue.capacity = capacity;
+	return queue;
 }
 
 #define PUSH_EVENT(queue, event) Push(&queue, &event, sizeof(event))
 void Push(event_queue* queue, void* data, u64 size) {
-    if (queue->size + size <= queue->capacity) {
-        CopyMem(&((u8*)queue->base)[queue->size], data, size);
-        queue->size += size;
-    }
+	if (queue->size + size <= queue->capacity) {
+		MemCopy(&((u8*)queue->base)[queue->size], data, size);
+		queue->size += size;
+	}
 }
 
 void Clear(event_queue *queue) {
-    queue->size = 0;
+	queue->size = 0;
 }
 
 //
@@ -76,28 +82,81 @@ void Clear(event_queue *queue) {
 
 // TODO: посмотреть про temp arena, scratch arena, fee list
 
+#define DEFAULT_ALIGNMENT 4 // TODO: какое значение лучше?
+
 struct memory_arena {
-    u8* base;
-    u64 size, capacity;
+	u8* base;
+	u64 size, capacity;
 };
 
-void Init(memory_arena* arena, void* base, u64 capacity) {
-    arena->base = (u8*)base;
-    arena->size = 0;
-    arena->capacity = capacity;
+memory_arena Arena(void* base, u64 capacity) {
+	memory_arena arena;
+	arena.base = (u8*)base;
+	arena.size = 0;
+	arena.capacity = capacity;
+	return arena;
 }
 
-void* Push(memory_arena* arena, u64 size) {
-    te_assert(arena->size + size <= arena->capacity);
-
-    u8* result = arena->base + arena->size;
-    arena->size += size;
-
-    return result;
+memory_arena ArenaAlloc(u64 capacity) {
+	memory_arena arena;
+	arena.base = (u8*)platform_debug_Malloc(capacity);
+	arena.size = 0;
+	arena.capacity = capacity;
+	return arena;
 }
 
-void Clear(memory_arena* arena) {
-    arena->size = 0;
+void ArenaRelease(memory_arena* arena) {
+	platform_debug_Free(arena->base);
+	ZeroStruct(*arena);
+}
+
+#define ArenaPush(arena, size) _ArenaPush(arena, size, DEFAULT_ALIGNMENT, true)
+#define ArenaPushStruct(arena, type) _ArenaPush(arena, sizeof(type), alignof(type), true)
+#define ArenaPushArray(arena, count, type) _ArenaPush(arena, sizeof(type) * (count), alignof(type), true)
+void* _ArenaPush(memory_arena* arena, u64 size, u64 alignment, bool clearToZero) {
+	u8* result = arena->base + arena->size;
+	u64 padding = -(u64)result & (alignment - 1); // работает только со степенями двойки
+	
+	te_assert(arena->size + size + padding <= arena->capacity);
+	
+	result += padding;
+	arena->size += size + padding;
+	
+	if (clearToZero)
+		MemZero(result, size);
+	
+	return result;
+}
+
+#define ArenaReallocArray(arena, array, oldCount, newCount, type) _ArenaRealloc(arena, array, oldCount * sizeof(type), newCount * sizeof(type), alignof(type), true)
+void* _ArenaRealloc(memory_arena* arena, void* memory, u64 size, u64 newSize, u64 alignment, bool clearToZero) {
+	void* newMemory = _ArenaPush(arena, newSize, alignment, false);
+	MemCopy(newMemory, memory, size);
+
+	if (clearToZero)
+		MemZero((u8*)newMemory + size, newSize - size);
+
+	return newMemory;
+}
+
+void ArenaClear(memory_arena* arena) {
+	arena->size = 0;
+}
+
+struct temp_memory_arena {
+	memory_arena* arena;
+	u64 pos;
+};
+
+temp_memory_arena TempArenaBegin(memory_arena* arena) {
+	temp_memory_arena tempArena;
+	tempArena.arena = arena;
+	tempArena.pos = arena->size;
+	return tempArena;
+}
+
+void TempArenaEnd(temp_memory_arena tempArena) {
+	tempArena.arena->size = tempArena.pos;
 }
 
 //
@@ -105,84 +164,103 @@ void Clear(memory_arena* arena) {
 //
 
 struct string {
-    char* base;
-    u64 size, capacity;
+	char* base;
+	u64 size;
 
-    char& operator[](u64 i) {
-        if (i >= size) {
-            platform_Print("string out of bounds\n");
-            return base[0];
-        }
-        return base[i];
-    } 
+	char& operator[](u64 i) {
+		return base[i];
+	} 
 };
 
 #define StrFirst(str) (str.base)
 #define StrLast(str) (str.base + str.size - 1)
 
-string String(const char* str) {
-    string res;
-    res.base = (char*)str;
-    res.size = res.capacity = StrLen(str);
-    return res;
+string String(const char* cstr) {
+	string str;
+	str.base = (char*)cstr;
+	str.size = StrLen(cstr);
+	return str;
 }
 
-string String(char* base, u64 capacity, u64 size = 0) {
-    string str;
-    str.base = base;
-    str.capacity = capacity;
-    str.size = size;
-    return str;
+string String(char* base, u64 size) {
+	string str;
+	str.base = base;
+	str.size = size;
+	return str;
 }
 
-// NOTE: не проверяет capacity
-void IntToString(string* buffer, s32 value) {
-    if (buffer->capacity < 1)
-        return;
-        
-    buffer->size = 0;
-    
-    s32 n = 0, v = Abs(value);
-    while(v > 0) {
-        v /= 10;
-        n++;
-    }
-    
-    n = te_Max(1, n);
-    s32 divider = Pow(10, n - 1);
+struct string_builder {
+	string buffer;
+	u64 capacity;
+};
 
-    char* p = buffer->base;
-    if (value < 0) {
-        *p = '-';
-        p++;
-        buffer->size++;
-    }
-    
-    v = Abs(value);
-        
-    for (s32 i = 0; i < n; i++)
-    {
-        *p = '0' + (v / divider % 10);
-        divider /= 10;
-        p++;
-        buffer->size++;
-    }
+void Realloc(memory_arena* arena, string_builder* builder, u64 newCapacity) {
+	builder->capacity = newCapacity;
+	char* newMem = (char*)ArenaPushArray(arena, builder->capacity, char);
+	MemCopy(newMem, builder->buffer.base, builder->buffer.size);
+	builder->buffer.base = newMem;
 }
 
-void Concat(string* a, string* b) {
-    if (a->size + b->size > a->capacity)
-        return;
-        
-    CopyMem(a->base + a->size, b->base, b->size);
-    a->size = a->size + b->size;
+void IntAppend(memory_arena* arena, string_builder* builder, s32 value) {    
+	s32 n = 0, v = Abs(value);
+	while(v > 0) {
+		v /= 10;
+		n++;
+	}
+	
+	n = te_Max(1, n);
+	s32 divider = Pow(10, n - 1);
+
+	u64 length = value < 0 ? n + 1 : n;
+	
+	// realloc
+	if (builder->buffer.size + length > builder->capacity) {
+		Realloc(arena, builder, (builder->capacity + length) * GROWTH_FACTOR);
+	}
+	
+	char* p = builder->buffer.base + builder->buffer.size;
+	
+	if (value < 0) {
+		*p = '-';
+		p++;
+	}
+	
+	v = Abs(value);
+		
+	for (s32 i = 0; i < n; i++)
+	{
+		*p = '0' + (v / divider % 10);
+		divider /= 10;
+		p++;
+	}
+	
+	builder->buffer.size += length;
+}
+
+void StrAppend(memory_arena* arena, string_builder* builder, string str) {
+	// realloc
+	if (builder->buffer.size + str.size > builder->capacity) {
+		Realloc(arena, builder, (builder->capacity + str.size) * GROWTH_FACTOR);
+	}
+	
+	MemCopy(builder->buffer.base + builder->buffer.size, str.base, str.size);
+	builder->buffer.size += str.size;
+}
+
+void StrAppend(memory_arena* arena, string_builder* builder, const char* cstr) {
+	StrAppend(arena, builder, String(cstr));
 }
 
 void ToCString(char* buffer, u64 bufferSize, string* str) {
-    if (bufferSize < str->size + 1)
-        return;
-        
-    CopyMem(buffer, str->base, str->size);
-    buffer[str->size] = 0;
+	if (bufferSize < str->size + 1)
+		return;
+		
+	MemCopy(buffer, str->base, str->size);
+	buffer[str->size] = 0;
+}
+
+void ToCString(char* buffer, u64 bufferSize, string_builder* builder) {
+	ToCString(buffer, bufferSize, &builder->buffer);
 }
 
 //
@@ -193,23 +271,43 @@ void ToCString(char* buffer, u64 bufferSize, string* str) {
 
 template <typename T>
 struct array_dynamic {
-    T* items;
-    u64 count, maxCount;    
+	T* items;
+	u64 count, maxCount;    
 };
 
-template <typename T>
-array_dynamic<T> Array(u64 maxCount = ARRAY_DEFAULT_MAX_COUNT) {
-    array_dynamic<T> array = {0};
-    array.items = (T*)platform_debug_Malloc(maxCount * sizeof(T));
-    array.maxCount = maxCount;
-    return array;
-}
+// template <typename T>
+// array_dynamic<T> Array(u64 maxCount = ARRAY_DEFAULT_MAX_COUNT) {
+//     array_dynamic<T> array = {0};
+//     array.items = (T*)platform_debug_Malloc(maxCount * sizeof(T));
+//     array.maxCount = maxCount;
+//     return array;
+// }
+
+// template <typename T>
+// void Push(array_dynamic<T>* array, const T& item) {
+//     if (array->count + 1 > array->maxCount) {
+//         array->items = (T*)platform_debug_Realloc(array->items, array->count * sizeof(T), (array->maxCount + 1) * GROWTH_FACTOR);
+//     }
+	
+//     array->items[array->count++] = item;
+// }
 
 template <typename T>
-void Push(array_dynamic<T>* array, const T& item) {
-    if (array->count + 1 > array->maxCount) {
-        array->items = (T*)platform_debug_Realloc(array->items, array->count * sizeof(T), (array->maxCount + 1) * 2);
-    }
-    
-    array->items[array->count++] = item;
+array_dynamic<T> Array(memory_arena *arena, u64 maxCount = ARRAY_DEFAULT_MAX_COUNT) {
+	array_dynamic<T> array = {0};
+	array.items = (T*)ArenaPushArray(arena, maxCount, T);
+	array.maxCount = maxCount;
+	return array;
+}    
+
+template <typename T>
+void Push(array_dynamic<T>* array, memory_arena* arena, const T& item) {
+	u64 newCount = array->count + 1;
+	if (newCount > array->maxCount) {
+		u64 newMaxCount = newCount * GROWTH_FACTOR;
+		array->items = (T*)ArenaReallocArray(arena, array->items, array->count, newMaxCount, T);
+		array->count = newMaxCount;
+	}
+	
+	array->items[array->count++] = item;
 }

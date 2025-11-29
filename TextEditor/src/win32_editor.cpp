@@ -35,13 +35,7 @@ static HDC g_DeviceContext;
 static HGLRC g_OglContext;
 static HWND g_Window;
 
-void* debug_malloc(u64 size) {
-	return VirtualAlloc(0, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-}
-void debug_free(void* mem) {
-	if (mem)
-		VirtualFree(mem, 0, MEM_RELEASE);
-}
+
 
 void ErrorHandle(const char* msg = NULL) {
 	DWORD errorCode = GetLastError();
@@ -105,13 +99,18 @@ void platform_EndFrame() {
 }
 
 void* platform_debug_Malloc(u64 size) {
-	return debug_malloc(size);
+	return VirtualAlloc(0, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+}
+
+void platform_debug_Free(void* mem) {
+	if (mem)
+		VirtualFree(mem, 0, MEM_RELEASE);
 }
 
 void* platform_debug_Realloc(void* oldMem, u64 oldSize, u64 newSize) {
-	void* newMem = debug_malloc(newSize);
-	CopyMem(newMem, oldMem, oldSize);
-	debug_free(oldMem);
+	void* newMem = platform_debug_Malloc(newSize);
+	MemCopy(newMem, oldMem, oldSize);
+	platform_debug_Free(oldMem);
 	return newMem;
 }
 
@@ -220,17 +219,20 @@ int WinMain(
 			//
 			
 			u64 permStorageCapaicty = Megabytes(5);
+			u64 tranStorageCapaicty = Megabytes(100);
 			u64 eventQueueCapacity = Megabytes(5);
 			
 			program_memory memory = {0};
-			memory.permStorage.base = debug_malloc(permStorageCapaicty);
+			memory.permStorage.base = platform_debug_Malloc(permStorageCapaicty);
 			memory.permStorage.capacity = permStorageCapaicty;
+			memory.tranStorage.base = platform_debug_Malloc(tranStorageCapaicty);
+			memory.tranStorage.capacity = tranStorageCapaicty;
 			
-			Init(&g_EventQueue, debug_malloc(eventQueueCapacity), eventQueueCapacity);
+			g_EventQueue = EventQueue(platform_debug_Malloc(eventQueueCapacity), eventQueueCapacity);
 			g_ProgramRunning = true;
 
 			program_input input = {0};
-
+			
 			//
 			// Main loop
 			//

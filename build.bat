@@ -34,9 +34,10 @@ set ExeName=editor.exe
 set CommonFlags=/nologo /Gm- /GR- /GS- /Oi /EHa-
 set CommonLinkerFlags=/ENTRY:main /incremental:no /fixed /opt:ref /opt:icf kernel32.lib User32.lib Gdi32.lib opengl32.lib Comdlg32.lib libvcruntime.lib 
 
+:: NOTE: /Z7 в релизном билде только на время разработки
 if %ReleaseBuild% (
   echo Release build
-  set CompilerFlags=%CommonFlags% /O2
+  set CompilerFlags=%CommonFlags% /O2 /Z7
   set LinkerFlags=%CommonLinkerFlags% /subsystem:windows "..\deps\imgui\imguidll_r.lib"
 ) 
 if %DebugBuild% (
