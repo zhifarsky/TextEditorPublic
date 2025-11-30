@@ -7,6 +7,7 @@
 #define te_assert(Expression)
 #endif
 
+#define InRange(value, min_v, max_v) (((value) >= (min_v)) && ((value) <= (max_v)))
 
 void MemCopy(void* destination, const void* source, u64 size) {
 	if (destination && source) {
@@ -41,9 +42,26 @@ u32 StrLen(const char* str) {
 	while (*p != '\0') { p++; }
 	return p - str;
 }
+
 u32 StrLen(const unsigned char* str) {
 	return StrLen((const char*)str);
 }
+
+s32 StrEqual(const char *strA, const char* strB) {
+	u32 lenA = StrLen(strA);
+	u32 lenB = StrLen(strB);
+	
+	if (lenA != lenB)
+		return false;
+	
+	for (u32 i = 0; i < lenA; i++)
+	{
+		if (strA[i] != strB[i])
+			return false;
+	}
+	
+	return true;
+} 
 
 #define te_Min(a, b) (a < b ? a : b)
 #define te_Max(a, b) (a > b ? a : b)

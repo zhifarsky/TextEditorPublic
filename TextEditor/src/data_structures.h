@@ -80,9 +80,9 @@ void Clear(event_queue *queue) {
 // Arena
 //
 
-// TODO: посмотреть про temp arena, scratch arena, fee list
+// TODO: посмотреть про temp arena, scratch arena, free list
 
-#define DEFAULT_ALIGNMENT 4 // TODO: какое значение лучше?
+#define DEFAULT_ALIGNMENT 16 // TODO: какое значение лучше?
 
 struct memory_arena {
 	u8* base;

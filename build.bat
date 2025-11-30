@@ -31,8 +31,8 @@ set ExeName=editor.exe
 @REM set CommonLinkerFlags=/incremental:no /fixed /opt:ref /opt:icf /stack:0x100000,0x100000 /nodefaultlib kernel32.lib User32.lib Gdi32.lib opengl32.lib Comdlg32.lib
 
 :: компилируем с libvcruntime.lib, так как imgui требует memcpy и тд. если убрать imgui, можно компилировать без него (и вернуться к /nodefaultlib?)
-set CommonFlags=/nologo /Gm- /GR- /GS- /Oi /EHa-
-set CommonLinkerFlags=/ENTRY:main /incremental:no /fixed /opt:ref /opt:icf kernel32.lib User32.lib Gdi32.lib opengl32.lib Comdlg32.lib libvcruntime.lib 
+set CommonFlags=/nologo /Gm- /GR- /GS- /Oi /EHa- /std:c++20 /utf-8
+set CommonLinkerFlags=/ENTRY:main /incremental:no /fixed /opt:ref /opt:icf kernel32.lib User32.lib Gdi32.lib opengl32.lib Comdlg32.lib libvcruntime.lib ucrt.lib
 
 :: NOTE: /Z7 в релизном билде только на время разработки
 if %ReleaseBuild% (

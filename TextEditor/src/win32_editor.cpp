@@ -65,6 +65,8 @@ te_Key MapKey(u32 virtualKey) {
 	case VK_RCONTROL: 	return Key_CtrlRight;
 	case VK_LMENU: 		return Key_AltLeft;
 	case VK_RMENU: 		return Key_AltRight;
+	
+	case VK_RETURN: 		return Key_Enter;
 	}
 	
 	return Key_None;
@@ -237,6 +239,8 @@ int WinMain(
 			// Main loop
 			//
 
+			SetForegroundWindow(g_Window);
+			
 			while (g_ProgramRunning) {
 				//
 				// Write events to event queue
@@ -334,18 +338,26 @@ LRESULT CALLBACK WindowProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
 	case WM_CHAR: 
 	{
 		wchar_t wideChar = wParam;
-		// char utf8Buffer[5] = {0};
-		code_point utf8CodePoint = {0};
-		u8* debugCodePoint = (u8*)&utf8CodePoint;
-		s32 bytesWritten = 
-			WideCharToMultiByte(CP_UTF8, 0, &wideChar, 1, (char*)&utf8CodePoint, sizeof(utf8CodePoint), NULL, NULL);
-
-		bool wasDown = WAS_DOWN(lParam);
-
-		// u16 repeatCount = lParam & 0xFFFF;
 		
-		char_event event = CharEvent(utf8CodePoint, wasDown, true);
-		PUSH_EVENT(g_EventQueue, event);
+		if (iswprint(wideChar)) // CRT. TODO: можно ли убрать?
+		{
+			char utf8Buffer[5] = {0};
+			s32 bytesWritten = 
+				WideCharToMultiByte(CP_UTF8, 0, &wideChar, 1, utf8Buffer, sizeof(utf8Buffer), NULL, NULL);
+			
+			// to little endian
+			code_point utf8CodePoint = {0};
+			for (s32 i = bytesWritten - 1, j = 0; i >= 0; i--, j++) {
+				utf8CodePoint.bytes[j] = utf8Buffer[i];
+			}
+
+			bool wasDown = WAS_DOWN(lParam);
+
+			// u16 repeatCount = lParam & 0xFFFF;
+			
+			char_event event = CharEvent(utf8CodePoint, wasDown, true);
+			PUSH_EVENT(g_EventQueue, event);
+		}
 	} return 0;
 
     case WM_SIZE:

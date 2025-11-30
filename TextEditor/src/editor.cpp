@@ -1,3 +1,8 @@
+/*
+TODO:
+* Положение окон сбивается после смены языка. Подставлять уникальные идендификаторы для элементов после перевода Begin("Настройки###Settings");
+*/
+
 #include <imgui/imgui.h>
 #include <imgui/imgui_internal.h>
 #include <imgui/imgui_impl_opengl3.h>
@@ -6,6 +11,7 @@
 #include "editor.h"
 #include "data_structures.h"
 #include "widgets.h"
+#include "localization.h"
 
 #define MIN_FONT_SIZE 14
 #define MAX_FONT_SIZE 40
@@ -18,7 +24,7 @@ ImFont* g_fontRegular;
 const char* g_fontRegularPath = "C:/Windows/Fonts/msyh.ttc";
 
 u32 g_lastDockNodeId;
-bool isSettingsOpen;
+bool g_isSettingsOpen;
 
 enum text_node_type : u8 {
 	Node_Original,
@@ -58,7 +64,7 @@ u64 GetText_utf8(text_tab* textTab, char* buffer) {
 
 void TextInsertChar(text_tab* textTab, code_point utf8CodePoint, s64 pos) {
 	s32 length = GetLength(utf8CodePoint);
-	for (s32 i = 0; i < length; i++)
+	for (s32 i = length - 1; i >= 0; i--)
 	{
 		Push<char>(&textTab->added, &textTab->arena, utf8CodePoint.bytes[i]);
 	}
@@ -101,7 +107,14 @@ void AddTextTab(editor_state* editor) {
 	editor->tabsCount++;
 }
 
-void TestCode() { }
+void TestCode() {
+	code_point cp = {0};
+	cp.v = '\u0410';
+	u8 b1 = cp.v & 0xFF;
+	u8 b2 = cp.v >> 8 & 0xFF;
+	u8 b3 = cp.v >> 16 & 0xFF;
+	u8 b4 = cp.v >> 24 & 0xFF;
+}
 
 void EditorUpdateAndRender(program_memory* memory, event_queue* eventQueue, program_input* input) {
 	editor_state* editorState = (editor_state*)memory->permStorage.base;
@@ -140,6 +153,12 @@ void EditorUpdateAndRender(program_memory* memory, event_queue* eventQueue, prog
 
 		editorState->fontSize = DEFAULT_FONT_SIZE; // TODO: больше не нужен?
 		g_fontRegular = ImGui::GetIO().Fonts->AddFontFromFileTTF(g_fontRegularPath);
+		
+		//
+		// Init Language
+		//
+		
+		SetLanguage(Lang_ENG);
 	}
 	
 	memory_arena* frameArena = &memory->tranStorage.frameArena;
@@ -162,8 +181,9 @@ void EditorUpdateAndRender(program_memory* memory, event_queue* eventQueue, prog
 				case Event_Char: {
 					char_event* event = (char_event*)i;
 					platform_Print("Processing char event\n");
+					
 					TextInsertChar(textTab, event->utf8CodePoint, textTab->cursorIndex);
-					// ...
+					
 					i += sizeof(*event);
 				} break;
 
@@ -175,11 +195,15 @@ void EditorUpdateAndRender(program_memory* memory, event_queue* eventQueue, prog
 					else if (event->key == Key_ArrowLeft) {
 						textTab->cursorIndex--;
 					}
+					else if (event->key == Key_Enter) {
+						code_point cp = CodePoint('\n');
+						TextInsertChar(textTab, cp, textTab->cursorIndex);
+					}
 					i += sizeof(*event);
 				} break;
 
 				default:
-					platform_Print("Unknown event");
+					platform_Print("Unknown event\n");
 				break;
 			}
 		}
@@ -219,13 +243,13 @@ void EditorUpdateAndRender(program_memory* memory, event_queue* eventQueue, prog
 
 		if (ImGui::Begin("Toolbar", nullptr, toolbarFlags))
 		{
-			if (ImGui::Button("Settings")) { isSettingsOpen = true; }
+			if (ImGui::Button(GetStrings().settings)) { g_isSettingsOpen = true; }
 			ImGui::SameLine();
 			
-			if (ImGui::Button("New")) { AddTextTab(editorState); }
+			if (ImGui::Button(GetStrings().newFile)) { AddTextTab(editorState); }
 			ImGui::SameLine();
 			
-			if (ImGui::Button("Load file")) { 
+			if (ImGui::Button(GetStrings().loadFile)) { 
 				// if (g_editor.textTabs.size > 0) {
 				//     g_editor.getCurrentTextTab().openFile(); // TODO: проверка, найден ли currentTextTab?
 				// }
@@ -236,7 +260,7 @@ void EditorUpdateAndRender(program_memory* memory, event_queue* eventQueue, prog
 			}
 			ImGui::SameLine();
 			
-			if (ImGui::Button("Save file")) {
+			if (ImGui::Button(GetStrings().saveFile)) {
 				// if (g_editor.textTabs.size > 0) {
 				// g_editor.getCurrentTextTab().saveFile(); // TODO: проверка, найден ли currentTextTab?
 				// }
@@ -280,6 +304,7 @@ void EditorUpdateAndRender(program_memory* memory, event_queue* eventQueue, prog
 	StrAppend(frameArena, &testBuilder, "Hello, ");
 	StrAppend(frameArena, &testBuilder, "World");
 	StrAppend(frameArena, &testBuilder, "!!!!!");
+	StrAppend(frameArena, &testBuilder, " Тест");
 	string testString = testBuilder.buffer;
 	ImGui::Text(testString);
 	ImGui::End();
@@ -339,9 +364,22 @@ void EditorUpdateAndRender(program_memory* memory, event_queue* eventQueue, prog
 	//
 	// Settings
 	//
-	if (isSettingsOpen) {
-		if (ImGui::Begin("Settings", &isSettingsOpen)) {
-			ImGui::SliderInt("Font size", (int*)&editorState->fontSize, MIN_FONT_SIZE, MAX_FONT_SIZE);
+	
+	if (g_isSettingsOpen) {
+		if (ImGui::Begin(GetStrings().settings, &g_isSettingsOpen)) {
+			ImGui::SliderInt(GetStrings().fontSize, (int*)&editorState->fontSize, MIN_FONT_SIZE, MAX_FONT_SIZE);
+			
+			// if (ImGui::Button("English")) SetLanguage(Lang_ENG);	
+			// if (ImGui::Button("Русский")) SetLanguage(Lang_RUS);	
+			
+			// TODO: временное решение, переделать
+			static s32 currentItem = 0;
+			const char* items[] = {"Engilsh", "Русский"};
+			if (ImGui::Combo(GetStrings().language, &currentItem, items, ArrayCount(items))) {
+				if (currentItem == 0) 			SetLanguage(Lang_ENG);
+				else if (currentItem == 1) 	SetLanguage(Lang_RUS);
+			}
+			
 		} ImGui::End();
 	}
 	
