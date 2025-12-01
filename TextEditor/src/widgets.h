@@ -17,13 +17,21 @@ namespace ImGui {
 		ImGui::TextUnformatted(StrFirst(str), StrLast(str) + 1);
 	}
 	
+	bool Button(string label, const ImVec2 &size = ImVec2(0,0) ) {
+		char buf[1024];
+		te_assert(sizeof(buf) > label.size);
+		ToCString(buf, sizeof(buf), &label);
+		
+		return ImGui::Button(buf, size);
+	}
+	
 	void DrawCursor(int cursorIndex, string text, ImU32 color = IM_COL32_WHITE) {
 		int lineBreakCount = 0; // количество строк перед курсором
 		int lineStart = 0; // индекс, с которого начинается строка
 		int lineLen = 0; // длина строки
 		
 		// находим количество строк перед курсором, начало последней строки и длину этой строки
-		for (u64 i = 0; i < cursorIndex && i < text.size; i++)
+		for (s64 i = 0; i < cursorIndex && i < text.size; i++)
 		{
 			lineLen++;
 			if (text[i] == '\n') {

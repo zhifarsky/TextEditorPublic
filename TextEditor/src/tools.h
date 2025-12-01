@@ -9,7 +9,7 @@
 
 #define InRange(value, min_v, max_v) (((value) >= (min_v)) && ((value) <= (max_v)))
 
-void MemCopy(void* destination, const void* source, u64 size) {
+void MemCopy(void* destination, const void* source, s64 size) {
 	if (destination && source) {
 		u8 *dest = (u8*)destination;
 		u8 *src = (u8*)source;
@@ -21,7 +21,7 @@ void MemCopy(void* destination, const void* source, u64 size) {
 }
 
 #define ZeroStruct(dest) MemZero(&dest, sizeof(dest))
-void MemZero(void* destination, u64 size) {
+void MemZero(void* destination, s64 size) {
 	u8 *dest = (u8*)destination;
 
 	while (size--) {
@@ -29,7 +29,7 @@ void MemZero(void* destination, u64 size) {
 	}
 }
 
-void MemSet(void* destination, u8 value, u64 count) {
+void MemSet(void* destination, u8 value, s64 count) {
 	u8 *dest = (u8*)destination;
 
 	while (count--) {
@@ -37,24 +37,24 @@ void MemSet(void* destination, u8 value, u64 count) {
 	}
 }
 
-u32 StrLen(const char* str) {
+s64 StrLen(const char* str) {
 	const char* p = str;
 	while (*p != '\0') { p++; }
 	return p - str;
 }
 
-u32 StrLen(const unsigned char* str) {
+s64 StrLen(const unsigned char* str) {
 	return StrLen((const char*)str);
 }
 
-s32 StrEqual(const char *strA, const char* strB) {
-	u32 lenA = StrLen(strA);
-	u32 lenB = StrLen(strB);
+bool StrEqual(const char *strA, const char* strB) {
+	s64 lenA = StrLen(strA);
+	s64 lenB = StrLen(strB);
 	
 	if (lenA != lenB)
 		return false;
 	
-	for (u32 i = 0; i < lenA; i++)
+	for (s64 i = 0; i < lenA; i++)
 	{
 		if (strA[i] != strB[i])
 			return false;
@@ -66,7 +66,7 @@ s32 StrEqual(const char *strA, const char* strB) {
 #define te_Min(a, b) (a < b ? a : b)
 #define te_Max(a, b) (a > b ? a : b)
 
-s32 Abs(s32 value) {
+s64 Abs(s64 value) {
 	if (value < 0)
 		return -value;
 	return value;

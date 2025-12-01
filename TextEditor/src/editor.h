@@ -30,8 +30,8 @@ void platform_Print(const char* message);
 void platform_StartFrame();
 void platform_EndFrame();
 
-void* platform_debug_Malloc(u64 size);
-void* platform_debug_Realloc(void* oldMem, u64 oldSize, u64 newSize);
+void* platform_debug_Malloc(s64 size);
+void* platform_debug_Realloc(void* oldMem, s64 oldSize, s64 newSize);
 void platform_debug_Free(void* memory);
 
 //
@@ -57,10 +57,6 @@ struct program_memory {
 		transient_storage tranStorage;
 		
 		bool isInitialized;
-};
-
-struct program_input {
-		void * stub;
 };
 
 void EditorUpdateAndRender(program_memory* memory, event_queue* eventQueue, program_input* input);

@@ -1,8 +1,3 @@
-/*
-TODO:
-* Положение окон сбивается после смены языка. Подставлять уникальные идендификаторы для элементов после перевода Begin("Настройки###Settings");
-*/
-
 #include <imgui/imgui.h>
 #include <imgui/imgui_internal.h>
 #include <imgui/imgui_impl_opengl3.h>
@@ -25,6 +20,7 @@ const char* g_fontRegularPath = "C:/Windows/Fonts/msyh.ttc";
 
 u32 g_lastDockNodeId;
 bool g_isSettingsOpen;
+bool g_isCommandsOpen;
 
 enum text_node_type : u8 {
 	Node_Original,
@@ -32,7 +28,7 @@ enum text_node_type : u8 {
 };
 
 struct text_node {
-	u64 start, length;
+	s64 start, length;
 	text_node_type type;
 };
 
@@ -47,6 +43,8 @@ struct text_tab {
 	s64 cursorIndex;
 	u32 id;
 	encoding_type encoding;
+	
+	bool isOpen;
 	
 	array_dynamic<char> added;
 	array_dynamic<text_node> nodes;
@@ -78,42 +76,51 @@ void TextInsertTest(text_tab* textTab) {
 }
 
 struct editor_state {
-	text_tab tabs[MAX_TABS_COUNT];
-	u32 tabsCount;
+	array_dynamic<text_tab> tabs;
 	u32 tabIDCounter;
 	
 	u32 fontSize;
-	s32 currentTextTab;
+	s32 currentTextTabID;
 };
 
 text_tab* GetCurrentTab(editor_state* editor) {
-	if (editor->currentTextTab < 0 || editor->currentTextTab >= editor->tabsCount)
+	if (editor->currentTextTabID < 0)
 		return NULL;
-	return &editor->tabs[editor->currentTextTab];
+	
+	for (u64 i = 0; i < editor->tabs.count; i++)
+	{
+		if (editor->tabs[i].id == editor->currentTextTabID)
+			return &editor->tabs[i];
+	}
+	
+	return NULL;
 }
 
-void AddTextTab(editor_state* editor) {
-	text_tab* newTab = &editor->tabs[editor->tabsCount];
-	ZeroStruct(*newTab);
+void AddTextTab(memory_arena* arena, editor_state* editor) {
+	text_tab newTab = {0};
 	
-	newTab->arena = ArenaAlloc(Megabytes(1));
+	newTab.arena = ArenaAlloc(Megabytes(1));
 	
-	newTab->encoding = Encoding_UTF8;
-	newTab->id = editor->tabIDCounter++; 
+	newTab.encoding = Encoding_UTF8;
+	newTab.id = editor->tabIDCounter++; 
 	
-	newTab->added = Array<char>(&newTab->arena);
+	newTab.added = Array<char>(&newTab.arena);
+	newTab.nodes = Array<text_node>(&newTab.arena);
 	
-	editor->currentTextTab = editor->tabsCount;
-	editor->tabsCount++;
+	newTab.isOpen = true;
+	
+	editor->currentTextTabID = newTab.id;
+	Push<text_tab>(&editor->tabs, arena, newTab);
 }
 
-void TestCode() {
-	code_point cp = {0};
-	cp.v = '\u0410';
-	u8 b1 = cp.v & 0xFF;
-	u8 b2 = cp.v >> 8 & 0xFF;
-	u8 b3 = cp.v >> 16 & 0xFF;
-	u8 b4 = cp.v >> 24 & 0xFF;
+void CloseTextTab(editor_state* editor, u32 tabIndex) {
+	text_tab* tab = &editor->tabs[tabIndex];
+	ArenaRelease(&tab->arena);
+	RemoveFast<text_tab>(&editor->tabs, tabIndex);
+}
+
+void TestCode(program_input* input) {
+
 }
 
 void EditorUpdateAndRender(program_memory* memory, event_queue* eventQueue, program_input* input) {
@@ -124,7 +131,7 @@ void EditorUpdateAndRender(program_memory* memory, event_queue* eventQueue, prog
 	//
 	
 	if (!memory->isInitialized) {
-		TestCode();
+		TestCode(input);
 		
 		permanent_storage* permStorage = &memory->permStorage;
 		permStorage->arena = Arena( 
@@ -145,7 +152,8 @@ void EditorUpdateAndRender(program_memory* memory, event_queue* eventQueue, prog
 		//
 		
 		ZeroStruct(*editorState);
-		editorState->currentTextTab = -1;
+		editorState->currentTextTabID = -1;
+		editorState->tabs = Array<text_tab>(&permStorage->arena);
 		
 		//
 		// Init Fonts
@@ -167,11 +175,14 @@ void EditorUpdateAndRender(program_memory* memory, event_queue* eventQueue, prog
 	//
 	// Process Event Queue
 	//
-
+	
 	text_tab* textTab = GetCurrentTab(editorState);
 	
 	if (textTab) {
 		u8* i = (u8*)eventQueue->base;
+		bool CtrlDown = false;
+		bool ShiftDown = false;
+		bool AltDown = false;
 		
 		while (i < (u8*)eventQueue->base + eventQueue->size) {
 			event_type eventType = *(event_type*)i;
@@ -180,25 +191,30 @@ void EditorUpdateAndRender(program_memory* memory, event_queue* eventQueue, prog
 			{
 				case Event_Char: {
 					char_event* event = (char_event*)i;
-					platform_Print("Processing char event\n");
-					
 					TextInsertChar(textTab, event->utf8CodePoint, textTab->cursorIndex);
-					
 					i += sizeof(*event);
 				} break;
 
 				case Event_Key: {
 					key_event* event = (key_event*)i;
-					if (event->key == Key_ArrowRight) {
+					if (event->key == Key_ArrowRight && event->isDown) {
 						textTab->cursorIndex++;
 					}
-					else if (event->key == Key_ArrowLeft) {
+					else if (event->key == Key_ArrowLeft && event->isDown) {
 						textTab->cursorIndex--;
 					}
-					else if (event->key == Key_Enter) {
+					else if (event->key == Key_Enter && event->isDown) {
 						code_point cp = CodePoint('\n');
 						TextInsertChar(textTab, cp, textTab->cursorIndex);
 					}
+					
+					else if (event->key == Key_Ctrl)
+						CtrlDown = event->isDown;
+					else if (event->key == Key_Shift)
+						ShiftDown = event->isDown;
+					else if (event->key == Key_Alt)
+						AltDown = event->isDown;
+
 					i += sizeof(*event);
 				} break;
 
@@ -209,6 +225,36 @@ void EditorUpdateAndRender(program_memory* memory, event_queue* eventQueue, prog
 		}
 	}
 
+	//
+	// Hotkeys
+	//
+	
+	bool ctrlDown 	= IsButtonPushed(input->keys[Key_Ctrl]);
+	bool shiftDown 	= IsButtonPushed(input->keys[Key_Shift]);
+	bool altDown 		= IsButtonPushed(input->keys[Key_Alt]);
+
+	for (size_t i = 1; i < ArrayCount(g_hotkeyMappings); i++) {
+		command_type commandType = (command_type)i;
+		command *c = &g_hotkeyMappings[i];
+
+		if (c->ctrl == ctrlDown && c->shift == shiftDown && c->alt == altDown && IsButtonDown(input->keys[c->key])) {
+			// TODO: выполнить команду
+			switch (commandType)
+			{
+			case Command_New:
+				AddTextTab(&memory->permStorage.arena, editorState);
+				break;
+			case Command_ShowCommands:
+				g_isCommandsOpen = true;
+				break;
+			default:
+				break;
+			}
+			platform_Print(c->label);
+			platform_Print("\n");
+		}
+	}
+	
 	//
 	// Draw UI
 	//
@@ -246,7 +292,7 @@ void EditorUpdateAndRender(program_memory* memory, event_queue* eventQueue, prog
 			if (ImGui::Button(GetStrings().settings)) { g_isSettingsOpen = true; }
 			ImGui::SameLine();
 			
-			if (ImGui::Button(GetStrings().newFile)) { AddTextTab(editorState); }
+			if (ImGui::Button(GetStrings().newFile)) { AddTextTab(&memory->permStorage.arena, editorState); }
 			ImGui::SameLine();
 			
 			if (ImGui::Button(GetStrings().loadFile)) { 
@@ -298,34 +344,32 @@ void EditorUpdateAndRender(program_memory* memory, event_queue* eventQueue, prog
 		ImGui::End();
 	}
 	
-	// TEST
-	ImGui::Begin("TEST");
-	string_builder testBuilder = {0};
-	StrAppend(frameArena, &testBuilder, "Hello, ");
-	StrAppend(frameArena, &testBuilder, "World");
-	StrAppend(frameArena, &testBuilder, "!!!!!");
-	StrAppend(frameArena, &testBuilder, " Тест");
-	string testString = testBuilder.buffer;
-	ImGui::Text(testString);
-	ImGui::End();
-	
-	// 
+	//
 	// Text tabs
 	// 
 	
-	for (size_t i = 0; i < editorState->tabsCount; i++) {
+	// cleanup
+	for (size_t i = 0; i < editorState->tabs.count; i++) {
 		text_tab* tab = &editorState->tabs[i];
-		
+
+		if (!tab->isOpen) {
+			CloseTextTab(editorState, i);
+		}
+	}
+	
+	for (size_t i = 0; i < editorState->tabs.count; i++) {
+		text_tab* tab = &editorState->tabs[i];
+
 		string_builder builder = {0};
 		StrAppend(frameArena, &builder, "New ");
 		IntAppend(frameArena, &builder, tab->id);
 		char label[256];
 		ToCString(label, 256, &builder);
 		
-		if (ImGui::Begin(label, NULL, ImGuiWindowFlags_NoSavedSettings))
+		if (ImGui::Begin(label, &tab->isOpen, ImGuiWindowFlags_NoSavedSettings))
 		{
 			if (ImGui::IsWindowFocused()) {
-				editorState->currentTextTab = tab->id;
+				editorState->currentTextTabID = tab->id;
 			}
 			// записываем id, по которому можно будет присоеденить окно
 			if (ImGui::IsWindowDocked()) {
@@ -343,10 +387,6 @@ void EditorUpdateAndRender(program_memory* memory, event_queue* eventQueue, prog
 			
 			string filenameStub = String("filename_stub.txt");
 			ImGui::Text(filenameStub);
-			
-			if (ImGui::Button("ut8 test")) {
-				TextInsertTest(tab);
-			}
 			
 			// string textBufferStub = String("Text Stub");
 			string text = String(tab->added.items, tab->added.count);
@@ -382,6 +422,69 @@ void EditorUpdateAndRender(program_memory* memory, event_queue* eventQueue, prog
 			
 		} ImGui::End();
 	}
+	
+	//
+	// Commands window
+	//
+	if (g_isCommandsOpen) {
+		if (ImGui::Begin("Commands", &g_isCommandsOpen)) {
+			for (size_t i = 1; i < ArrayCount(g_hotkeyMappings); i++) {
+				command* c = &g_hotkeyMappings[i];
+				string_builder sb = {0};
+				
+				// hotkey string
+				s32 count = 0;
+				if (c->ctrl) {
+					StrAppend(frameArena, &sb, GetKeyString(Key_Ctrl));
+					count++;
+				}
+				if (c->shift) {
+					if (count > 0)
+						StrAppend(frameArena, &sb, " + ");
+					StrAppend(frameArena, &sb, GetKeyString(Key_Shift));
+					count++;
+				}
+				if (c->alt) {
+					if (count > 0)
+						StrAppend(frameArena, &sb, " + ");
+					StrAppend(frameArena, &sb, GetKeyString(Key_Alt));
+					count++;
+				}
+				if (c->key) {
+					if (count > 0)
+						StrAppend(frameArena, &sb, " + ");
+					StrAppend(frameArena, &sb, GetKeyString(c->key));
+				}
+					
+				u32 buttonWidth = 150;
+				
+				ImGui::PushID(i);
+				ImGui::TextUnformatted(c->label);
+				ImGui::SameLine(ImGui::GetWindowWidth() - ImGui::GetStyle().WindowPadding.x - buttonWidth);
+				// ImGui::Text(sb.buffer);
+				ImGui::Button(sb.buffer, ImVec2(buttonWidth, 0));
+				ImGui::PopID();
+			}
+		} ImGui::End();
+	}
+	
+	 // test
+	 static int counter = 0;
+	 if (ImGui::Begin("Debug")) {
+		button_state *b = &input->keys[Key_Shift];
+		ImGui::Text("Is down: %d", b->isDown);
+		ImGui::Text("Half transition count: %d", b->halfTransitionsCount);
+		ImGui::Text("Counter %d", counter);
+		if (IsButtonDown(*b)) {
+			counter++;
+		}
+		if (IsButtonPushed(*b)) {
+			ImGui::Text("Pushed");
+		}
+		if (IsButtonReleased(*b)) {
+			ImGui::Text("Released");
+		}		
+	 } ImGui::End();
 	
 	ImGui::PopFont();
 	

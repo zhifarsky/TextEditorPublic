@@ -30,6 +30,10 @@ LRESULT CALLBACK WindowProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
 static bool g_ProgramRunning;
 static event_queue g_EventQueue;
 
+static program_input inputs[2];
+static program_input *oldInput = &inputs[0];
+static program_input *newInput = &inputs[1];
+
 static HANDLE g_Console;
 static HDC g_DeviceContext;
 static HGLRC g_OglContext;
@@ -59,12 +63,18 @@ te_Key MapKey(u32 virtualKey) {
 	case VK_UP:		return Key_ArrowUp;
 	case VK_DOWN:	return Key_ArrowDown;
 	
-	case VK_LSHIFT: 	return Key_ShiftLeft;
-	case VK_RSHIFT: 	return Key_ShiftRight;
-	case VK_LCONTROL: 	return Key_CtrlLeft;
-	case VK_RCONTROL: 	return Key_CtrlRight;
-	case VK_LMENU: 		return Key_AltLeft;
-	case VK_RMENU: 		return Key_AltRight;
+	case VK_SHIFT: 		
+	case VK_LSHIFT: 	
+	case VK_RSHIFT: 	
+		return Key_Shift;
+	case VK_CONTROL: 	
+	case VK_LCONTROL: 
+	case VK_RCONTROL: 
+		return Key_Ctrl;
+	case VK_MENU: 		
+	case VK_LMENU: 		
+	case VK_RMENU: 		
+		return Key_Alt;
 	
 	case VK_RETURN: 		return Key_Enter;
 	}
@@ -100,7 +110,7 @@ void platform_EndFrame() {
 	SwapBuffers(g_DeviceContext);
 }
 
-void* platform_debug_Malloc(u64 size) {
+void* platform_debug_Malloc(s64 size) {
 	return VirtualAlloc(0, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 }
 
@@ -109,7 +119,7 @@ void platform_debug_Free(void* mem) {
 		VirtualFree(mem, 0, MEM_RELEASE);
 }
 
-void* platform_debug_Realloc(void* oldMem, u64 oldSize, u64 newSize) {
+void* platform_debug_Realloc(void* oldMem, s64 oldSize, s64 newSize) {
 	void* newMem = platform_debug_Malloc(newSize);
 	MemCopy(newMem, oldMem, oldSize);
 	platform_debug_Free(oldMem);
@@ -232,8 +242,6 @@ int WinMain(
 			
 			g_EventQueue = EventQueue(platform_debug_Malloc(eventQueueCapacity), eventQueueCapacity);
 			g_ProgramRunning = true;
-
-			program_input input = {0};
 			
 			//
 			// Main loop
@@ -242,11 +250,13 @@ int WinMain(
 			SetForegroundWindow(g_Window);
 			
 			while (g_ProgramRunning) {
+				
 				//
-				// Write events to event queue
+				// Inputs
 				//
 				
 				Clear(&g_EventQueue); // подгатавливаем очередь к WindowProc
+				MemCopy(oldInput, newInput, sizeof(*newInput));
 
 				MSG message;
 				// NOTE: в hwnd нужен NULL, иначе обработка сообщений начинает работать неправильно
@@ -255,14 +265,16 @@ int WinMain(
 					TranslateMessage(&message);
 					DispatchMessageW(&message);
 				}
-
-
+				
+				for (size_t i = 0; i < ArrayCount(newInput->keys); i++) {
+					ProcessButtonInput(&oldInput->keys[i], &newInput->keys[i], newInput->keys[i].isDown);
+				}
 
 				//
 				// Editor Code
 				//
 
-				EditorUpdateAndRender(&memory, &g_EventQueue, &input);
+				EditorUpdateAndRender(&memory, &g_EventQueue, newInput);
 			}
 
 			//
@@ -324,16 +336,32 @@ LRESULT CALLBACK WindowProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
 	return 1;
 
 	case WM_SYSKEYDOWN:
-    case WM_KEYDOWN:
+  case WM_KEYDOWN:
 	{
 		bool wasDown = WAS_DOWN(lParam);
-		key_event event = KeyEvent(MapKey(wParam), wasDown, true);
+		bool isDown = true;
+		te_Key key = MapKey(wParam);
+		
+		key_event event = KeyEvent(key, wasDown, isDown);
 		PUSH_EVENT(g_EventQueue, event);
+		
+		// ProcessButtonInput(&oldInput->keys[key], &newInput->keys[key], isDown);
+		newInput->keys[key].isDown = isDown;
 	} break;
-
+	
 	case WM_SYSKEYUP:
 	case WM_KEYUP:
-	break;
+	{
+		bool wasDown = WAS_DOWN(lParam);
+		bool isDown = false;
+		te_Key key = MapKey(wParam);
+		
+		key_event event = KeyEvent(key, wasDown, isDown);
+		PUSH_EVENT(g_EventQueue, event);
+		
+		// ProcessButtonInput(&oldInput->keys[key], &newInput->keys[key], isDown);
+		newInput->keys[key].isDown = isDown;
+	} break;
 
 	case WM_CHAR: 
 	{

@@ -22,7 +22,7 @@ struct _localization_strings {
 };
 
 // TODO: парсить из файла?
-// TODO: подставлять идендификаторы ###... автоматически
+// TODO: подставлять идентификаторы ###... автоматически
 _localization_strings g_localizations[Lang_COUNT] = {
 	{
 		.lang = Lang_ENG,

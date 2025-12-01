@@ -13,28 +13,7 @@ struct code_point {
 #define CodePoint(value) {.v = value}
 
 s32 GetLength(code_point p) {
-	// // ascii
-	// if ((p.bytes[3] & 0b10000000) == 0)
-	// 	return 1;
-	
-	// // leading code byte
-	// if (p.bytes[2] & 0b11000000) {
-	// 	s32 res = 1;
-	// 	// continuation bytes
-	// 	for (s32 i = 2; i >= 0; i--) {
-	// 		if ((p.bytes[i] & 0b11000000) == 0b10000000)
-	// 			res++;
-	// 		else
-	// 			break;
-	// 	}
-		
-	// 	return res;
-	// }
-
-	// platform_Print("Invalid code point\n");
-	// return 0;
-	
-	for (size_t i = 3; i >= 0; i--)
+	for (s32 i = 3; i >= 0; i--)
 	{
 		u8 byte = p.bytes[i];
 		if (byte == 0) continue;
@@ -60,15 +39,126 @@ enum te_Key {
 	Key_Y = 'Y', Key_Z = 'Z',
 	
 	Key_ArrowLeft, Key_ArrowRight, Key_ArrowUp, Key_ArrowDown,
-	
-	Key_ShiftLeft,  Key_ShiftRight,
-	Key_CtrlLeft,   Key_CtrlRight,
-	Key_AltLeft,    Key_AltRight,
-	
+	Key_Shift, Key_Ctrl, Key_Alt,
 	Key_Enter,
 	
-	// Key_a = 'a', Key_b = 'b', Key_c = 'c', Key_d = 'd', Key_e = 'e', Key_f = 'f', Key_g = 'g', Key_h = 'h', 
-	// Key_i = 'i', Key_j = 'j', Key_k = 'k', Key_l = 'l', Key_m = 'm', Key_n = 'n', Key_o = 'o', Key_p = 'p', 
-	// Key_q = 'q', Key_r = 'r', Key_s = 's', Key_t = 't', Key_u = 'u', Key_v = 'v', Key_w = 'w', Key_x = 'x', 
-	// Key_y = 'y', Key_z = 'z',
+	Key_COUNT
+};
+
+struct button_state {
+	s32 halfTransitionsCount;
+	bool isDown;
+};
+
+struct program_input {
+	button_state keys[Key_COUNT];
+};
+
+void ProcessButtonInput(button_state* oldState, button_state* newState, bool isDown) {
+		newState->isDown = isDown;
+		newState->halfTransitionsCount = oldState->isDown != newState->isDown ? 1 : 0;
+	}
+
+// активируется в один раз когда кнопка нажата
+#define IsButtonDown(b) 	((b).isDown && (b).halfTransitionsCount > 0)
+// активируется в один раз когда кнопка отпущена
+#define IsButtonReleased(b) (!(b).isDown && (b).halfTransitionsCount > 0)
+// активирован, пока кнопка не отпущена
+#define IsButtonPushed(b) 	((b).isDown && (b).halfTransitionsCount == 0)
+	
+// void ProcessButtonInput(button_state* buttonState, bool wasDown, bool isDown) {
+	// buttonState->endedDown = !isDown;
+	// buttonState->halfTransitionsCount = wasDown != isDown ? 1 : 0;
+// }
+
+const char* GetKeyString(te_Key key) {
+	switch (key)
+	{
+		case Key_None: 				return "None";
+		
+		case Key_0: 					return "0";
+		case Key_1: 					return "1";
+		case Key_2: 					return "2";
+		case Key_3: 					return "3";
+		case Key_4: 					return "4";
+		case Key_5: 					return "5";
+		case Key_6: 					return "6";
+		case Key_7: 					return "7";
+		case Key_8: 					return "8";
+		case Key_9: 					return "9";
+		
+		case Key_A:						return "A";
+		case Key_B:						return "B";
+		case Key_C:						return "C";
+		case Key_D:						return "D";
+		case Key_E:						return "E";
+		case Key_F:						return "F";
+		case Key_G:						return "G";
+		case Key_H:						return "H";
+		case Key_I:						return "I";
+		case Key_J:						return "J";
+		case Key_K:						return "K";
+		case Key_L:						return "L";
+		case Key_M:						return "M";
+		case Key_N:						return "N";
+		case Key_O:						return "O";
+		case Key_P:						return "P";
+		case Key_Q:						return "Q";
+		case Key_R:						return "R";
+		case Key_S:						return "S";
+		case Key_T:						return "T";
+		case Key_U:						return "U";
+		case Key_V:						return "V";
+		case Key_W:						return "W";
+		case Key_X:						return "X";
+		case Key_Y:						return "Y";
+		case Key_Z:						return "Z";
+
+		case Key_ArrowLeft:		return "Arrow Left";
+		case Key_ArrowRight:	return "Arrow Right";
+		case Key_ArrowUp:			return "Arrow Up";
+		case Key_ArrowDown:		return "Arrow Down";
+		
+		case Key_Shift:				return "Shift";
+		case Key_Ctrl:				return "Ctrl";
+		case Key_Alt:					return "Alt";
+		
+		case Key_Enter:				return "Enter";
+		
+		default:							return "[NOT AVALIABLE]";
+	}	
+}
+
+//
+// Commands & Hotkeys
+//
+
+struct command {
+	const char* label;
+	bool ctrl, shift, alt;
+	te_Key key;
+};
+
+enum command_type {
+	Command_None,
+	
+	Command_ShowCommands,
+	
+	Command_New,
+	Command_Copy,
+	Command_Paste,
+	Command_SelectAll,
+	
+	Command_COUNT,
+};
+
+command g_hotkeyMappings[Command_COUNT] = {
+	{.label="None"},
+	
+	{.label="Show commands",		.ctrl=1, .shift=1, .alt=0, .key=Key_P},
+	
+	{.label="New", 										.ctrl=1, .shift=0, .alt=0, .key=Key_N},
+	{.label="Copy", 									.ctrl=1, .shift=0, .alt=0, .key=Key_C},
+	{.label="Paste", 									.ctrl=1, .shift=0, .alt=0, .key=Key_V},
+	{.label="Select all", 						.ctrl=1, .shift=0, .alt=0, .key=Key_A},
 };
