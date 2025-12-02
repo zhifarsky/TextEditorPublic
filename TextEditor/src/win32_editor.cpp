@@ -76,6 +76,7 @@ te_Key MapKey(u32 virtualKey) {
 	case VK_RMENU: 		
 		return Key_Alt;
 	
+	case VK_ESCAPE: 		return Key_Esc;
 	case VK_RETURN: 		return Key_Enter;
 	}
 	
@@ -221,7 +222,8 @@ int WinMain(
 			auto imguiContext = ImGui::CreateContext();
 			// ImGui::SetCurrentContext(imguiContext);
 			ImGuiIO& io = ImGui::GetIO();
-			io.ConfigFlags |= ImGuiConfigFlags_DockingEnable; // imgui docking
+			io.ConfigFlags |= ImGuiConfigFlags_DockingEnable; 		// docking
+			io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard; // keyboard navigation
 			ImGui::StyleColorsDark();
 			ImGui_ImplWin32_Init(g_Window);
 			ImGui_ImplOpenGL3_Init(glsl_version);

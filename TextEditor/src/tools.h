@@ -63,6 +63,41 @@ bool StrEqual(const char *strA, const char* strB) {
 	return true;
 } 
 
+// работает только с ascii
+char ToLower(char c) {
+	if (c >= 'A' && c <= 'Z')
+		c += 'a' - 'A';
+	return c;
+} 
+
+enum str_find_flags_ {
+	StrFind_ToLower = 1 << 0
+};
+typedef int str_find_flags;
+
+// сколько символов strB входит в strA с начала строки
+bool StrFind(const char* strA, const char* strB, str_find_flags flags = 0) {
+	s64 lenA = StrLen(strA);
+	s64 lenB = StrLen(strB);
+	
+	s64 count = 0;
+	for (s64 i = 0; i < lenA && i < lenB; i++) {
+		char a = strA[i];
+		char b = strB[i];
+		if (flags & StrFind_ToLower) {
+				a = ToLower(a);
+				b = ToLower(b);
+		}
+		
+		if (a == b) {
+			count++;
+		}
+		else
+			break;
+	}
+	return count;
+}
+
 #define te_Min(a, b) (a < b ? a : b)
 #define te_Max(a, b) (a > b ? a : b)
 

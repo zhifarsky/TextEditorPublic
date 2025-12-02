@@ -40,6 +40,7 @@ enum te_Key {
 	
 	Key_ArrowLeft, Key_ArrowRight, Key_ArrowUp, Key_ArrowDown,
 	Key_Shift, Key_Ctrl, Key_Alt,
+	Key_Esc,
 	Key_Enter,
 	
 	Key_COUNT
@@ -55,9 +56,9 @@ struct program_input {
 };
 
 void ProcessButtonInput(button_state* oldState, button_state* newState, bool isDown) {
-		newState->isDown = isDown;
-		newState->halfTransitionsCount = oldState->isDown != newState->isDown ? 1 : 0;
-	}
+	newState->isDown = isDown;
+	newState->halfTransitionsCount = oldState->isDown != newState->isDown ? 1 : 0;
+}
 
 // активируется в один раз когда кнопка нажата
 #define IsButtonDown(b) 	((b).isDown && (b).halfTransitionsCount > 0)
@@ -65,11 +66,6 @@ void ProcessButtonInput(button_state* oldState, button_state* newState, bool isD
 #define IsButtonReleased(b) (!(b).isDown && (b).halfTransitionsCount > 0)
 // активирован, пока кнопка не отпущена
 #define IsButtonPushed(b) 	((b).isDown && (b).halfTransitionsCount == 0)
-	
-// void ProcessButtonInput(button_state* buttonState, bool wasDown, bool isDown) {
-	// buttonState->endedDown = !isDown;
-	// buttonState->halfTransitionsCount = wasDown != isDown ? 1 : 0;
-// }
 
 const char* GetKeyString(te_Key key) {
 	switch (key)
@@ -123,6 +119,7 @@ const char* GetKeyString(te_Key key) {
 		case Key_Ctrl:				return "Ctrl";
 		case Key_Alt:					return "Alt";
 		
+		case Key_Esc:					return "Esc";
 		case Key_Enter:				return "Enter";
 		
 		default:							return "[NOT AVALIABLE]";
@@ -133,6 +130,10 @@ const char* GetKeyString(te_Key key) {
 // Commands & Hotkeys
 //
 
+// TODO:
+// окно команд:
+// * ремаппинг хоткеев
+
 struct command {
 	const char* label;
 	bool ctrl, shift, alt;
@@ -142,7 +143,7 @@ struct command {
 enum command_type {
 	Command_None,
 	
-	Command_ShowCommands,
+	Command_ShowCommandPalette,
 	
 	Command_New,
 	Command_Copy,

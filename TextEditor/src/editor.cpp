@@ -20,7 +20,17 @@ const char* g_fontRegularPath = "C:/Windows/Fonts/msyh.ttc";
 
 u32 g_lastDockNodeId;
 bool g_isSettingsOpen;
-bool g_isCommandsOpen;
+bool g_isCommandPaletteOpen;
+bool g_commandPaletteFocusInput;
+
+void OpenCommandPalette() {
+	g_isCommandPaletteOpen = true;
+	g_commandPaletteFocusInput = true;
+}
+
+//
+// Text
+//
 
 enum text_node_type : u8 {
 	Node_Original,
@@ -75,6 +85,10 @@ void TextInsertTest(text_tab* textTab) {
 	TextInsertChar(textTab, c, 0);
 }
 
+//
+// Editor State
+//
+
 struct editor_state {
 	array_dynamic<text_tab> tabs;
 	u32 tabIDCounter;
@@ -119,9 +133,30 @@ void CloseTextTab(editor_state* editor, u32 tabIndex) {
 	RemoveFast<text_tab>(&editor->tabs, tabIndex);
 }
 
+void ExecuteCommand(command_type commandType, program_memory* memory, editor_state* editorState) {
+	switch (commandType)
+	{
+	case Command_New:
+		AddTextTab(&memory->permStorage.arena, editorState);
+		break;
+	case Command_ShowCommandPalette:
+		OpenCommandPalette();
+		break;
+	default:
+	platform_Print("Not implemented: ");
+	platform_Print(g_hotkeyMappings[commandType].label);
+	platform_Print("\n");
+		break;
+	}	
+}
+
 void TestCode(program_input* input) {
 
 }
+
+//
+// Editor Main
+//
 
 void EditorUpdateAndRender(program_memory* memory, event_queue* eventQueue, program_input* input) {
 	editor_state* editorState = (editor_state*)memory->permStorage.base;
@@ -132,6 +167,9 @@ void EditorUpdateAndRender(program_memory* memory, event_queue* eventQueue, prog
 	
 	if (!memory->isInitialized) {
 		TestCode(input);
+		
+		// TODO: реализовать reserve/commit арены 
+		// перенести frame и permanent арены в editor_state 
 		
 		permanent_storage* permStorage = &memory->permStorage;
 		permStorage->arena = Arena( 
@@ -180,10 +218,7 @@ void EditorUpdateAndRender(program_memory* memory, event_queue* eventQueue, prog
 	
 	if (textTab) {
 		u8* i = (u8*)eventQueue->base;
-		bool CtrlDown = false;
-		bool ShiftDown = false;
-		bool AltDown = false;
-		
+
 		while (i < (u8*)eventQueue->base + eventQueue->size) {
 			event_type eventType = *(event_type*)i;
 		
@@ -208,13 +243,6 @@ void EditorUpdateAndRender(program_memory* memory, event_queue* eventQueue, prog
 						TextInsertChar(textTab, cp, textTab->cursorIndex);
 					}
 					
-					else if (event->key == Key_Ctrl)
-						CtrlDown = event->isDown;
-					else if (event->key == Key_Shift)
-						ShiftDown = event->isDown;
-					else if (event->key == Key_Alt)
-						AltDown = event->isDown;
-
 					i += sizeof(*event);
 				} break;
 
@@ -226,7 +254,7 @@ void EditorUpdateAndRender(program_memory* memory, event_queue* eventQueue, prog
 	}
 
 	//
-	// Hotkeys
+	// Commands / Hotkeys
 	//
 	
 	bool ctrlDown 	= IsButtonPushed(input->keys[Key_Ctrl]);
@@ -238,20 +266,7 @@ void EditorUpdateAndRender(program_memory* memory, event_queue* eventQueue, prog
 		command *c = &g_hotkeyMappings[i];
 
 		if (c->ctrl == ctrlDown && c->shift == shiftDown && c->alt == altDown && IsButtonDown(input->keys[c->key])) {
-			// TODO: выполнить команду
-			switch (commandType)
-			{
-			case Command_New:
-				AddTextTab(&memory->permStorage.arena, editorState);
-				break;
-			case Command_ShowCommands:
-				g_isCommandsOpen = true;
-				break;
-			default:
-				break;
-			}
-			platform_Print(c->label);
-			platform_Print("\n");
+			ExecuteCommand(commandType, memory, editorState);
 		}
 	}
 	
@@ -424,42 +439,82 @@ void EditorUpdateAndRender(program_memory* memory, event_queue* eventQueue, prog
 	}
 	
 	//
-	// Commands window
+	// Command Palette
 	//
-	if (g_isCommandsOpen) {
-		if (ImGui::Begin("Commands", &g_isCommandsOpen)) {
+	
+	if (g_isCommandPaletteOpen) {
+		// закрыть
+		if (IsButtonDown(input->keys[Key_Esc])) {
+			g_isCommandPaletteOpen = false;
+		}
+
+		if (ImGui::Begin("Commands", &g_isCommandPaletteOpen)) {
+			static char searchBuf[1024];
+			bool executeFirst = false;
+			
+			ImGui::SetNextItemWidth(-1.0f);
+			if (ImGui::InputText("##CommandsSearch", searchBuf, sizeof(searchBuf), ImGuiInputTextFlags_AutoSelectAll | ImGuiInputTextFlags_EnterReturnsTrue)) {
+				executeFirst = true; // если нажат Enter, выполняем первую команду из списка
+			}
+			
+			// фокус на поле ввода при открытии окна
+			if (g_commandPaletteFocusInput) {
+				ImGui::SetKeyboardFocusHere(-1);
+				g_commandPaletteFocusInput = false;
+			}
+			
 			for (size_t i = 1; i < ArrayCount(g_hotkeyMappings); i++) {
 				command* c = &g_hotkeyMappings[i];
+				
+				// фильтрация
+				// TODO: fuzzy search
+				if (StrLen(searchBuf) && !StrFind(c->label, searchBuf, StrFind_ToLower)){
+					continue;
+				}
+				
+				if (executeFirst) {
+					ExecuteCommand((command_type)i, memory, editorState);
+					g_isCommandPaletteOpen = false;
+					break;
+				}
+				
 				string_builder sb = {0};
 				
 				// hotkey string
-				s32 count = 0;
-				if (c->ctrl) {
-					StrAppend(frameArena, &sb, GetKeyString(Key_Ctrl));
-					count++;
-				}
-				if (c->shift) {
-					if (count > 0)
-						StrAppend(frameArena, &sb, " + ");
-					StrAppend(frameArena, &sb, GetKeyString(Key_Shift));
-					count++;
-				}
-				if (c->alt) {
-					if (count > 0)
-						StrAppend(frameArena, &sb, " + ");
-					StrAppend(frameArena, &sb, GetKeyString(Key_Alt));
-					count++;
-				}
-				if (c->key) {
-					if (count > 0)
-						StrAppend(frameArena, &sb, " + ");
-					StrAppend(frameArena, &sb, GetKeyString(c->key));
+				{
+					s32 count = 0;
+					if (c->ctrl) {
+						StrAppend(frameArena, &sb, GetKeyString(Key_Ctrl));
+						count++;
+					}
+					if (c->shift) {
+						if (count > 0)
+							StrAppend(frameArena, &sb, " + ");
+						StrAppend(frameArena, &sb, GetKeyString(Key_Shift));
+						count++;
+					}
+					if (c->alt) {
+						if (count > 0)
+							StrAppend(frameArena, &sb, " + ");
+						StrAppend(frameArena, &sb, GetKeyString(Key_Alt));
+						count++;
+					}
+					if (c->key) {
+						if (count > 0)
+							StrAppend(frameArena, &sb, " + ");
+						StrAppend(frameArena, &sb, GetKeyString(c->key));
+					}
 				}
 					
 				u32 buttonWidth = 150;
 				
 				ImGui::PushID(i);
-				ImGui::TextUnformatted(c->label);
+				ImGui::PushStyleVar(ImGuiStyleVar_ButtonTextAlign, ImVec2(0, 0.5));
+				if (ImGui::Button(c->label, ImVec2(buttonWidth, 0))) {
+					ExecuteCommand((command_type)i, memory, editorState);
+					g_isCommandPaletteOpen = false;
+				}
+				ImGui::PopStyleVar();
 				ImGui::SameLine(ImGui::GetWindowWidth() - ImGui::GetStyle().WindowPadding.x - buttonWidth);
 				// ImGui::Text(sb.buffer);
 				ImGui::Button(sb.buffer, ImVec2(buttonWidth, 0));
