@@ -6,6 +6,8 @@
 void platform_Print(const char* msg);
 void* platform_debug_Malloc(s64 size);
 void platform_debug_Free(void* memory);
+void* MemReserve(s64 size);
+void MemCommit(void *memory, s64 size); 
 
 #define GROWTH_FACTOR 2
 
@@ -83,25 +85,35 @@ void Clear(event_queue *queue) {
 // TODO: посмотреть про temp arena, scratch arena, free list
 
 #define DEFAULT_ALIGNMENT 16 // TODO: какое значение лучше?
+#define DEFAULT_RESERVE Gigabytes(64)
+#define COMMIT_SIZE Kilobytes(64)
+
+#define RoundToMultiple(number, multiple) (((number) + (multiple) - 1) / (multiple)) * (multiple)
 
 struct memory_arena {
 	u8* base;
-	s64 size, capacity;
+	s64 size, commited, reserved;
 };
 
-memory_arena Arena(void* base, s64 capacity) {
-	memory_arena arena;
-	arena.base = (u8*)base;
-	arena.size = 0;
-	arena.capacity = capacity;
-	return arena;
-}
+// memory_arena Arena(void* base, s64 capacity, s64 commited, s64 reserved = DEFAULT_RESERVE) {
+// 	memory_arena arena;
+// 	arena.base = (u8*)base;
+// 	arena.size = 0;
+// 	arena.capacity = capacity;
+// 	return arena;
+// }
 
-memory_arena ArenaAlloc(s64 capacity) {
+memory_arena ArenaAlloc(s64 commit, s64 reserve = DEFAULT_RESERVE) {
 	memory_arena arena;
-	arena.base = (u8*)platform_debug_Malloc(capacity);
+	arena.reserved = RoundToMultiple(reserve, COMMIT_SIZE);
+	arena.commited = RoundToMultiple(commit, COMMIT_SIZE);
+	
+	te_assert(arena.commited <= arena.reserved);
+	
+	arena.base = (u8*)MemReserve(arena.reserved);
+	MemCommit(arena.base, arena.commited);
+	
 	arena.size = 0;
-	arena.capacity = capacity;
 	return arena;
 }
 
@@ -117,9 +129,19 @@ void* _ArenaPush(memory_arena* arena, s64 size, s64 alignment, bool clearToZero)
 	u8* result = arena->base + arena->size;
 	s64 padding = -(s64)result & (alignment - 1); // работает только со степенями двойки
 	
-	te_assert(arena->size + size + padding <= arena->capacity);
+	//te_assert(arena->size + size + padding <= arena->capacity);
 	
 	result += padding;
+	
+	// commit memory
+	if (result + size >= arena->base + arena->commited) {
+		s64 commitSize = RoundToMultiple(size, COMMIT_SIZE);
+		te_assert(arena->reserved >= arena->commited + commitSize);
+		
+		MemCommit(arena->base + arena->commited, commitSize);
+		arena->commited += commitSize;
+	}
+	
 	arena->size += size + padding;
 	
 	if (clearToZero)

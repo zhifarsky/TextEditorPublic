@@ -127,6 +127,14 @@ void* platform_debug_Realloc(void* oldMem, s64 oldSize, s64 newSize) {
 	return newMem;
 }
 
+void* MemReserve(s64 size) {
+	return VirtualAlloc(0, size, MEM_RESERVE, PAGE_READWRITE);
+}
+
+void MemCommit(void *memory, s64 size) {
+	VirtualAlloc(memory, size, MEM_COMMIT, PAGE_READWRITE);
+}
+
 //
 // Main
 //
@@ -232,15 +240,7 @@ int WinMain(
 			// Init state
 			//
 			
-			u64 permStorageCapaicty = Megabytes(5);
-			u64 tranStorageCapaicty = Megabytes(100);
 			u64 eventQueueCapacity = Megabytes(5);
-			
-			program_memory memory = {0};
-			memory.permStorage.base = platform_debug_Malloc(permStorageCapaicty);
-			memory.permStorage.capacity = permStorageCapaicty;
-			memory.tranStorage.base = platform_debug_Malloc(tranStorageCapaicty);
-			memory.tranStorage.capacity = tranStorageCapaicty;
 			
 			g_EventQueue = EventQueue(platform_debug_Malloc(eventQueueCapacity), eventQueueCapacity);
 			g_ProgramRunning = true;
@@ -276,7 +276,8 @@ int WinMain(
 				// Editor Code
 				//
 
-				EditorUpdateAndRender(&memory, &g_EventQueue, newInput);
+				EditorUpdate(&g_EventQueue, newInput);
+				EditorRender(newInput);
 			}
 
 			//
@@ -326,7 +327,7 @@ LRESULT CALLBACK WindowProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
 	if (ImGui_ImplWin32_WndProcHandler(window, msg, wParam, lParam))
 		return true;
 
-    switch (msg) {
+	switch (msg) {
     
 	case WM_DESTROY:
     case WM_CLOSE: 
@@ -390,15 +391,17 @@ LRESULT CALLBACK WindowProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
 		}
 	} return 0;
 
-    case WM_SIZE:
-		return 0;
+	case WM_SIZE:
+	return 0;
 
-    case WM_PAINT: {
+	case WM_PAINT: {
+		EditorRender(newInput); // рендер на изменении размера окна
+		
 		PAINTSTRUCT paint;
 		BeginPaint(window, &paint);
 		EndPaint(window, &paint);
 	} return 0;
-    }
+	}
 
-    return DefWindowProcW(window, msg, wParam, lParam);;
+	return DefWindowProcW(window, msg, wParam, lParam);;
 }

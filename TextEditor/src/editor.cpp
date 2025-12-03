@@ -90,11 +90,16 @@ void TextInsertTest(text_tab* textTab) {
 //
 
 struct editor_state {
-	array_dynamic<text_tab> tabs;
+	memory_arena arena;
+	memory_arena frameArena;
+	
+	array_dynamic<text_tab> tabs; // TODO: указатели next в text_tab для freeList
 	u32 tabIDCounter;
 	
 	u32 fontSize;
 	s32 currentTextTabID;
+	
+	bool isInitialized;
 };
 
 text_tab* GetCurrentTab(editor_state* editor) {
@@ -110,7 +115,7 @@ text_tab* GetCurrentTab(editor_state* editor) {
 	return NULL;
 }
 
-void AddTextTab(memory_arena* arena, editor_state* editor) {
+void AddTextTab(editor_state* editor) {
 	text_tab newTab = {0};
 	
 	newTab.arena = ArenaAlloc(Megabytes(1));
@@ -124,7 +129,7 @@ void AddTextTab(memory_arena* arena, editor_state* editor) {
 	newTab.isOpen = true;
 	
 	editor->currentTextTabID = newTab.id;
-	Push<text_tab>(&editor->tabs, arena, newTab);
+	Push<text_tab>(&editor->tabs, &editor->arena, newTab);
 }
 
 void CloseTextTab(editor_state* editor, u32 tabIndex) {
@@ -133,11 +138,11 @@ void CloseTextTab(editor_state* editor, u32 tabIndex) {
 	RemoveFast<text_tab>(&editor->tabs, tabIndex);
 }
 
-void ExecuteCommand(command_type commandType, program_memory* memory, editor_state* editorState) {
+void ExecuteCommand(command_type commandType, editor_state* editorState) {
 	switch (commandType)
 	{
 	case Command_New:
-		AddTextTab(&memory->permStorage.arena, editorState);
+		AddTextTab(editorState);
 		break;
 	case Command_ShowCommandPalette:
 		OpenCommandPalette();
@@ -154,44 +159,31 @@ void TestCode(program_input* input) {
 
 }
 
+static editor_state g_editorState = {0};
+
 //
 // Editor Main
 //
 
-void EditorUpdateAndRender(program_memory* memory, event_queue* eventQueue, program_input* input) {
-	editor_state* editorState = (editor_state*)memory->permStorage.base;
+void EditorUpdate(event_queue* eventQueue, program_input* input) {
+	editor_state* editorState = &g_editorState;
 	
 	//
 	// Init State
 	//
 	
-	if (!memory->isInitialized) {
+	if (!editorState->isInitialized) {
 		TestCode(input);
 		
-		// TODO: реализовать reserve/commit арены 
-		// перенести frame и permanent арены в editor_state 
-		
-		permanent_storage* permStorage = &memory->permStorage;
-		permStorage->arena = Arena( 
-			((u8*)permStorage->base)    + sizeof(*editorState), 
-			permStorage->capacity       - sizeof(*editorState)
-		); 
-		
-		transient_storage* tranStorage = &memory->tranStorage;
-		tranStorage->frameArena = Arena( 
-			tranStorage->base, 
-			tranStorage->capacity
-		);
-		
-		memory->isInitialized = true;
-				
 		//
 		//  Init Editor
 		//
+		 
+		editorState->arena = ArenaAlloc(Megabytes(64), Gigabytes(64));
+		editorState->frameArena = ArenaAlloc(Megabytes(64), Gigabytes(64));
 		
-		ZeroStruct(*editorState);
 		editorState->currentTextTabID = -1;
-		editorState->tabs = Array<text_tab>(&permStorage->arena);
+		editorState->tabs = Array<text_tab>(&editorState->arena, 128);
 		
 		//
 		// Init Fonts
@@ -205,9 +197,11 @@ void EditorUpdateAndRender(program_memory* memory, event_queue* eventQueue, prog
 		//
 		
 		SetLanguage(Lang_ENG);
+		
+		editorState->isInitialized = true;
 	}
 	
-	memory_arena* frameArena = &memory->tranStorage.frameArena;
+	memory_arena* frameArena = &editorState->frameArena;
 	ArenaClear(frameArena);
 	
 	//
@@ -266,9 +260,17 @@ void EditorUpdateAndRender(program_memory* memory, event_queue* eventQueue, prog
 		command *c = &g_hotkeyMappings[i];
 
 		if (c->ctrl == ctrlDown && c->shift == shiftDown && c->alt == altDown && IsButtonDown(input->keys[c->key])) {
-			ExecuteCommand(commandType, memory, editorState);
+			ExecuteCommand(commandType, editorState);
 		}
 	}
+}
+
+void EditorRender(program_input* input) {
+	editor_state *editorState = &g_editorState;
+	memory_arena* frameArena = &editorState->frameArena;
+	
+	if (!editorState->isInitialized)
+		return;
 	
 	//
 	// Draw UI
@@ -307,7 +309,7 @@ void EditorUpdateAndRender(program_memory* memory, event_queue* eventQueue, prog
 			if (ImGui::Button(GetStrings().settings)) { g_isSettingsOpen = true; }
 			ImGui::SameLine();
 			
-			if (ImGui::Button(GetStrings().newFile)) { AddTextTab(&memory->permStorage.arena, editorState); }
+			if (ImGui::Button(GetStrings().newFile)) { AddTextTab(editorState); }
 			ImGui::SameLine();
 			
 			if (ImGui::Button(GetStrings().loadFile)) { 
@@ -448,6 +450,15 @@ void EditorUpdateAndRender(program_memory* memory, event_queue* eventQueue, prog
 			g_isCommandPaletteOpen = false;
 		}
 
+		u32 buttonWidth = 150;
+		
+		ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+		ImVec2 size = ImGui::GetMainViewport()->Size;
+		ImGui::SetNextWindowPos(center, 0, ImVec2(0.5, 0.5));
+		ImGui::SetNextWindowSize(ImVec2(
+					te_Max(size.x * 0.4, buttonWidth * 3), 
+					size.y * 0.7));
+		
 		if (ImGui::Begin("Commands", &g_isCommandPaletteOpen)) {
 			static char searchBuf[1024];
 			bool executeFirst = false;
@@ -473,7 +484,7 @@ void EditorUpdateAndRender(program_memory* memory, event_queue* eventQueue, prog
 				}
 				
 				if (executeFirst) {
-					ExecuteCommand((command_type)i, memory, editorState);
+					ExecuteCommand((command_type)i, editorState);
 					g_isCommandPaletteOpen = false;
 					break;
 				}
@@ -505,13 +516,11 @@ void EditorUpdateAndRender(program_memory* memory, event_queue* eventQueue, prog
 						StrAppend(frameArena, &sb, GetKeyString(c->key));
 					}
 				}
-					
-				u32 buttonWidth = 150;
-				
+								
 				ImGui::PushID(i);
 				ImGui::PushStyleVar(ImGuiStyleVar_ButtonTextAlign, ImVec2(0, 0.5));
 				if (ImGui::Button(c->label, ImVec2(buttonWidth, 0))) {
-					ExecuteCommand((command_type)i, memory, editorState);
+					ExecuteCommand((command_type)i, editorState);
 					g_isCommandPaletteOpen = false;
 				}
 				ImGui::PopStyleVar();

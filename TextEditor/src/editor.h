@@ -23,6 +23,7 @@ typedef double f64;
 
 //
 // Platform Services
+// TODO: убрать префикс
 //
 
 void platform_Print(const char* message);
@@ -34,29 +35,12 @@ void* platform_debug_Malloc(s64 size);
 void* platform_debug_Realloc(void* oldMem, s64 oldSize, s64 newSize);
 void platform_debug_Free(void* memory);
 
+void* MemReserve(s64 size);
+void MemCommit(void *memory, s64 size); 
+
 //
 // Editor services
 //
 
-struct permanent_storage {
-	void *base;
-	u64 capacity;
-	
-	memory_arena arena; 
-};
-
-struct transient_storage {
-	void* base;
-	u64 capacity;
-	
-	memory_arena frameArena; // очищается в начале каждого кадра
-};
-
-struct program_memory {
-		permanent_storage permStorage;
-		transient_storage tranStorage;
-		
-		bool isInitialized;
-};
-
-void EditorUpdateAndRender(program_memory* memory, event_queue* eventQueue, program_input* input);
+void EditorUpdate(event_queue* eventQueue, program_input* input);
+void EditorRender(event_queue* eventQueue);
