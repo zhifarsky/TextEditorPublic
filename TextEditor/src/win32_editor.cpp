@@ -232,7 +232,7 @@ int WinMain(
 			ImGuiIO& io = ImGui::GetIO();
 			io.ConfigFlags |= ImGuiConfigFlags_DockingEnable; 		// docking
 			io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard; // keyboard navigation
-			ImGui::StyleColorsDark();
+			// ImGui::StyleColorsDark();
 			ImGui_ImplWin32_Init(g_Window);
 			ImGui_ImplOpenGL3_Init(glsl_version);
 
@@ -259,6 +259,8 @@ int WinMain(
 				
 				Clear(&g_EventQueue); // подгатавливаем очередь к WindowProc
 				MemCopy(oldInput, newInput, sizeof(*newInput));
+				newInput->keys[Key_WheelDown] = {0};
+				newInput->keys[Key_WheelUp] = {0};
 
 				MSG message;
 				// NOTE: в hwnd нужен NULL, иначе обработка сообщений начинает работать неправильно
@@ -335,7 +337,6 @@ LRESULT CALLBACK WindowProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
 	return 0;
 
 	case WM_INPUTLANGCHANGE:
-		platform_Print("Input language changed\n");
 	return 1;
 
 	case WM_SYSKEYDOWN:
@@ -391,6 +392,19 @@ LRESULT CALLBACK WindowProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
 		}
 	} return 0;
 
+	case WM_MOUSEWHEEL: {
+		// newInput->wheelDelta = GET_WHEEL_DELTA_WPARAM(wParam) / WHEEL_DELTA;
+		s32 wheelDelta = GET_WHEEL_DELTA_WPARAM(wParam);
+		if (wheelDelta > 0) {
+			newInput->keys[Key_WheelUp].isDown = true;
+			newInput->keys[Key_WheelDown].isDown = false;
+		}
+		else {
+			newInput->keys[Key_WheelDown].isDown = true;
+			newInput->keys[Key_WheelUp].isDown = false;
+		}
+	} return 0;
+	
 	case WM_SIZE:
 	return 0;
 

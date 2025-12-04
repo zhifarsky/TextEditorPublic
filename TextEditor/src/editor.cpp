@@ -147,6 +147,15 @@ void ExecuteCommand(command_type commandType, editor_state* editorState) {
 	case Command_ShowCommandPalette:
 		OpenCommandPalette();
 		break;
+	case Command_OpenSettings:
+		g_isSettingsOpen = true;
+		break;
+	case Command_IncreaseFontSize:
+		editorState->fontSize += 5;
+		break;
+	case Command_DecreaseFontSize:
+		editorState->fontSize -= 5;
+		break;
 	default:
 	platform_Print("Not implemented: ");
 	platform_Print(g_hotkeyMappings[commandType].label);
@@ -166,6 +175,8 @@ static editor_state g_editorState = {0};
 //
 
 void EditorUpdate(event_queue* eventQueue, program_input* input) {
+	TestCode(input);
+	
 	editor_state* editorState = &g_editorState;
 	
 	//
@@ -173,7 +184,6 @@ void EditorUpdate(event_queue* eventQueue, program_input* input) {
 	//
 	
 	if (!editorState->isInitialized) {
-		TestCode(input);
 		
 		//
 		//  Init Editor
@@ -186,11 +196,13 @@ void EditorUpdate(event_queue* eventQueue, program_input* input) {
 		editorState->tabs = Array<text_tab>(&editorState->arena, 128);
 		
 		//
-		// Init Fonts
+		// Init Fonts & Theme
 		//
 
-		editorState->fontSize = DEFAULT_FONT_SIZE; // TODO: больше не нужен?
+		editorState->fontSize = DEFAULT_FONT_SIZE;
 		g_fontRegular = ImGui::GetIO().Fonts->AddFontFromFileTTF(g_fontRegularPath);
+		
+		SetDarkTheme();
 		
 		//
 		// Init Language
@@ -198,11 +210,10 @@ void EditorUpdate(event_queue* eventQueue, program_input* input) {
 		
 		SetLanguage(Lang_ENG);
 		
-		editorState->isInitialized = true;
+		editorState->isInitialized = true;		
 	}
 	
 	memory_arena* frameArena = &editorState->frameArena;
-	ArenaClear(frameArena);
 	
 	//
 	// Process Event Queue
@@ -265,19 +276,25 @@ void EditorUpdate(event_queue* eventQueue, program_input* input) {
 	}
 }
 
+//
+// Draw UI
+//
+
 void EditorRender(program_input* input) {
 	editor_state *editorState = &g_editorState;
-	memory_arena* frameArena = &editorState->frameArena;
-	
 	if (!editorState->isInitialized)
 		return;
 	
 	//
-	// Draw UI
+	// Frame Setup
 	//
-
+	
+	memory_arena* frameArena = &editorState->frameArena;
+		
 	platform_StartFrame();
 	
+	// limit font size
+	editorState->fontSize = te_Min(te_Max(editorState->fontSize, MIN_FONT_SIZE), MAX_FONT_SIZE);
 	ImGui::PushFont(g_fontRegular, editorState->fontSize);
 	
 	ImGuiViewport* viewport = ImGui::GetMainViewport();
@@ -306,10 +323,10 @@ void EditorRender(program_input* input) {
 
 		if (ImGui::Begin("Toolbar", nullptr, toolbarFlags))
 		{
-			if (ImGui::Button(GetStrings().settings)) { g_isSettingsOpen = true; }
+			if (ImGui::Button(GetStrings().settings)) { ExecuteCommand(Command_OpenSettings, editorState); }
 			ImGui::SameLine();
 			
-			if (ImGui::Button(GetStrings().newFile)) { AddTextTab(editorState); }
+			if (ImGui::Button(GetStrings().newFile)) { ExecuteCommand(Command_New, editorState); }
 			ImGui::SameLine();
 			
 			if (ImGui::Button(GetStrings().loadFile)) { 
@@ -324,6 +341,7 @@ void EditorRender(program_input* input) {
 			ImGui::SameLine();
 			
 			if (ImGui::Button(GetStrings().saveFile)) {
+				ExecuteCommand(Command_Save, editorState);
 				// if (g_editor.textTabs.size > 0) {
 				// g_editor.getCurrentTextTab().saveFile(); // TODO: проверка, найден ли currentTextTab?
 				// }
@@ -426,15 +444,9 @@ void EditorRender(program_input* input) {
 		if (ImGui::Begin(GetStrings().settings, &g_isSettingsOpen)) {
 			ImGui::SliderInt(GetStrings().fontSize, (int*)&editorState->fontSize, MIN_FONT_SIZE, MAX_FONT_SIZE);
 			
-			// if (ImGui::Button("English")) SetLanguage(Lang_ENG);	
-			// if (ImGui::Button("Русский")) SetLanguage(Lang_RUS);	
-			
-			// TODO: временное решение, переделать
 			static s32 currentItem = 0;
-			const char* items[] = {"Engilsh", "Русский"};
-			if (ImGui::Combo(GetStrings().language, &currentItem, items, ArrayCount(items))) {
-				if (currentItem == 0) 			SetLanguage(Lang_ENG);
-				else if (currentItem == 1) 	SetLanguage(Lang_RUS);
+			if (ImGui::Combo(GetStrings().language, &currentItem, g_languageStrings, ArrayCount(g_languageStrings))) {
+				SetLanguage((localization_language)currentItem);
 			}
 			
 		} ImGui::End();
@@ -450,7 +462,7 @@ void EditorRender(program_input* input) {
 			g_isCommandPaletteOpen = false;
 		}
 
-		u32 buttonWidth = 150;
+		u32 buttonWidth = editorState->fontSize * 10;
 		
 		ImVec2 center = ImGui::GetMainViewport()->GetCenter();
 		ImVec2 size = ImGui::GetMainViewport()->Size;
@@ -532,25 +544,19 @@ void EditorRender(program_input* input) {
 		} ImGui::End();
 	}
 	
-	 // test
-	 static int counter = 0;
-	 if (ImGui::Begin("Debug")) {
-		button_state *b = &input->keys[Key_Shift];
-		ImGui::Text("Is down: %d", b->isDown);
-		ImGui::Text("Half transition count: %d", b->halfTransitionsCount);
-		ImGui::Text("Counter %d", counter);
-		if (IsButtonDown(*b)) {
-			counter++;
-		}
-		if (IsButtonPushed(*b)) {
-			ImGui::Text("Pushed");
-		}
-		if (IsButtonReleased(*b)) {
-			ImGui::Text("Released");
-		}		
-	 } ImGui::End();
-	
+	// test
+	if (ImGui::Begin("Debug")) {
+	f32 divider = Kilobytes(1);
+	ImGui::Arena(&editorState->arena, "Main Arena");
+	ImGui::Arena(&editorState->frameArena, "Frame Arena");
+	} ImGui::End();
+
+	//
+	// Frame Cleanup
+	//
+	 
 	ImGui::PopFont();
-	
 	platform_EndFrame();
+	
+	ArenaClear(frameArena);
 }

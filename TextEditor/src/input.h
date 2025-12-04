@@ -43,6 +43,8 @@ enum te_Key {
 	Key_Esc,
 	Key_Enter,
 	
+	Key_WheelUp, Key_WheelDown,
+	
 	Key_COUNT
 };
 
@@ -122,6 +124,9 @@ const char* GetKeyString(te_Key key) {
 		case Key_Esc:					return "Esc";
 		case Key_Enter:				return "Enter";
 		
+		case Key_WheelUp:				return "Wheel Up";
+		case Key_WheelDown:			return "Wheel Down";
+		
 		default:							return "[NOT AVALIABLE]";
 	}	
 }
@@ -144,11 +149,16 @@ enum command_type {
 	Command_None,
 	
 	Command_ShowCommandPalette,
+	Command_OpenSettings,
 	
 	Command_New,
+	Command_Save,
 	Command_Copy,
 	Command_Paste,
 	Command_SelectAll,
+	
+	Command_IncreaseFontSize,
+	Command_DecreaseFontSize,
 	
 	Command_COUNT,
 };
@@ -157,9 +167,14 @@ command g_hotkeyMappings[Command_COUNT] = {
 	{.label="None"},
 	
 	{.label="Show commands",		.ctrl=1, .shift=1, .alt=0, .key=Key_P},
+	{.label="Open settings"},
 	
 	{.label="New", 										.ctrl=1, .shift=0, .alt=0, .key=Key_N},
+	{.label="Save", 									.ctrl=1, .shift=0, .alt=0, .key=Key_S},
 	{.label="Copy", 									.ctrl=1, .shift=0, .alt=0, .key=Key_C},
 	{.label="Paste", 									.ctrl=1, .shift=0, .alt=0, .key=Key_V},
 	{.label="Select all", 						.ctrl=1, .shift=0, .alt=0, .key=Key_A},
+	
+	{.label="Increase font size", 						.ctrl=1, .shift=0, .alt=0, .key=Key_WheelUp},
+	{.label="Decrease font size", 						.ctrl=1, .shift=0, .alt=0, .key=Key_WheelDown},
 };

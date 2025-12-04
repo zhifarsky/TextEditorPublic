@@ -6,6 +6,8 @@ enum localization_language {
 	Lang_COUNT
 };
 
+const char* g_languageStrings[Lang_COUNT] = { "English", "Русский" };
+
 struct localization_strings {
 	const char
 	*language,
@@ -39,7 +41,7 @@ _localization_strings g_localizations[Lang_COUNT] = {
 			.loadFile="Открыть###Open", 				.saveFile="Сохранить###Save", 				.newFile="Новый###New",
 			.settings = "Настройки###Settings", .fontSize="Размер шрифта###FontSize"
 		},
-	}
+	},
 };
 
 
